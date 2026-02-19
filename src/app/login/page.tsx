@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (err) {
-      setError(err.message === "Invalid login credentials" ? "Email o contraseña incorrectos." : err.message);
+      setError(getAuthErrorMessage(err));
       return;
     }
     router.refresh();

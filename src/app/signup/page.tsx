@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getAuthErrorMessage } from "@/lib/auth-errors";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function SignupPage() {
     const { data, error: err } = await supabase.auth.signUp({ email, password });
     if (err) {
       setLoading(false);
-      setError(err.message);
+      setError(getAuthErrorMessage(err));
       return;
     }
     if (data.user) {
