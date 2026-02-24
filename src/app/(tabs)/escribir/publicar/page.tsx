@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
+import type { Formato } from "@/types/formatos";
 import { Header } from "@/components/layout/Header";
 import { IconChevronLeft, IconEdit } from "@/components/ui/Icons";
 
-const TEMATICAS = ["Poesía", "Cuento", "Novela", "Ensayo", "Otro"];
 const BUCKET_IMAGENES = "text-images";
 const MAX_IMAGE_SIZE_MB = 3;
 
@@ -20,7 +21,9 @@ export default function PublicarPage() {
   const previewObjectUrlRef = useRef<string | null>(null);
 
   const [titulo, setTitulo] = useState("");
-  const [tematica, setTematica] = useState("Poesía");
+  const [formatoId, setFormatoId] = useState<string | null>(null);
+  const [formatos, setFormatos] = useState<Formato[]>([]);
+  const [loadingFormatos, setLoadingFormatos] = useState(true);
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(!!textId);
   const [publishing, setPublishing] = useState(false);
@@ -32,6 +35,14 @@ export default function PublicarPage() {
   const [previaImageUrl, setPreviaImageUrl] = useState<string | null>(null);
   const [previaLoading, setPreviaLoading] = useState(false);
 
+  // Cargar catálogo de formatos
+  useEffect(() => {
+    fetchFormatos()
+      .then(setFormatos)
+      .catch(() => setFormatos([]))
+      .finally(() => setLoadingFormatos(false));
+  }, []);
+
   // Cargar datos del texto cuando hay id
   useEffect(() => {
     if (!textId) {
@@ -42,14 +53,12 @@ export default function PublicarPage() {
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("texts")
-        .select("title, tematica")
+        .select("title, formato_id")
         .eq("id", textId)
         .single();
       if (!fetchError && data) {
         setTitulo(data.title ?? "");
-        if (data.tematica && TEMATICAS.includes(data.tematica)) {
-          setTematica(data.tematica);
-        }
+        setFormatoId(data.formato_id ?? null);
       }
       setLoading(false);
     })();
@@ -115,6 +124,9 @@ export default function PublicarPage() {
     }
 
     const titleToSave = titulo.trim() || "Sin título";
+    const tematicaNombre = formatoId
+      ? formatos.find((f) => f.id === formatoId)?.nombre ?? null
+      : null;
 
     // Si no hay textId, crear un texto nuevo en draft y redirigir
     if (!textId) {
@@ -125,7 +137,8 @@ export default function PublicarPage() {
           title: titleToSave,
           body: "",
           status: "draft",
-          tematica,
+          formato_id: formatoId,
+          tematica: tematicaNombre,
         })
         .select("id")
         .single();
@@ -174,7 +187,10 @@ export default function PublicarPage() {
       .from("texts")
       .update({
         title: titleToSave,
-        tematica,
+        formato_id: formatoId,
+        tematica: formatoId
+          ? formatos.find((f) => f.id === formatoId)?.nombre ?? null
+          : null,
         image_url: imageUrl,
         status: "published",
       })
@@ -231,7 +247,9 @@ export default function PublicarPage() {
               <article className="flex flex-col gap-6">
                 <header>
                   <span className="text-neutral-400 text-xs font-medium uppercase tracking-wider">
-                    {tematica}
+                    {formatoId
+                      ? formatos.find((f) => f.id === formatoId)?.nombre ?? ""
+                      : ""}
                   </span>
                   <h1 className="text-2xl font-bold text-black leading-tight mt-1">
                     {tituloPrevia}
@@ -289,22 +307,41 @@ export default function PublicarPage() {
             />
 
             <h2 className="text-lg font-bold text-black leading-5 mt-6 mb-1">
-              Temática
+              Formato
             </h2>
             <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-2">
               Seleccioná entre las opciones
             </p>
             <div className="relative">
               <select
-                value={tematica}
-                onChange={(e) => setTematica(e.target.value)}
-                className="w-full h-14 px-4 pr-12 bg-white rounded-2xl shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)] text-black text-sm font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-red/30"
+                value={formatoId ?? ""}
+                onChange={(e) => setFormatoId(e.target.value || null)}
+                disabled={loadingFormatos}
+                className="w-full h-14 px-4 pr-12 bg-white rounded-2xl shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)] text-black text-sm font-bold appearance-none focus:outline-none focus:ring-2 focus:ring-red/30 disabled:opacity-60"
               >
-                {TEMATICAS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
+                <option value="">Elegir formato</option>
+                {!loadingFormatos &&
+                  (() => {
+                    const { ficcion, no_ficcion } = groupFormatosByCategoria(formatos);
+                    return (
+                      <>
+                        <optgroup label="Ficción">
+                          {ficcion.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.nombre}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="No ficción">
+                          {no_ficcion.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.nombre}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    );
+                  })()}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-black">
                 <svg width="19" height="22" viewBox="0 0 19 22" fill="none" aria-hidden>

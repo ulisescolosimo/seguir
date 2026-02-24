@@ -1,16 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { fetchPalabrasConConteo } from "@/lib/diccionario";
+import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
+import type { PalabraConConteo } from "@/types/diccionario";
+import type { Formato } from "@/types/formatos";
+import {
+  IconAvatarCircle,
+  IconPhoto,
+  IconSearch,
+  IconChevronLeft,
+  IconFilter,
+} from "@/components/ui/Icons";
 import { Header } from "@/components/layout/Header";
-import { IconChevronLeft, IconAvatarCircle, IconPhoto } from "@/components/ui/Icons";
 
 type CommunityText = {
   id: string;
   title: string;
   body: string;
+  formato_id: string | null;
   tematica: string | null;
+  formatos_texto: { nombre: string }[] | null;
   image_url: string | null;
   updated_at: string;
   user_id: string;
@@ -29,7 +41,7 @@ function formatFecha(iso: string): string {
   }
 }
 
-function excerpt(body: string, max = 80): string {
+function excerpt(body: string, max = 60): string {
   const t = body.trim();
   if (!t) return "";
   return t.length <= max ? t : t.slice(0, max).trim() + "…";
@@ -40,6 +52,7 @@ function authorDisplayName(firstName: string | null, lastName: string | null): s
   return n || "un miembro";
 }
 
+/** Card de texto según template: imagen izquierda, contenido a la derecha (tag, título, descripción, fecha, autor). */
 function CommunityTextCard({
   text,
   authorName,
@@ -48,44 +61,75 @@ function CommunityTextCard({
   authorName: string;
 }) {
   const displayTitle = text.title?.trim() || "Sin título";
-  const tematica = text.tematica?.toUpperCase() || "TEXTO";
-  const imageUrl = text.image_url || "https://placehold.co/166x130";
+  const formatoLabel = (
+    text.tematica?.trim() ||
+    text.formatos_texto?.[0]?.nombre ||
+    "TEXTO"
+  ).toUpperCase();
+  const imageUrl = text.image_url || "https://placehold.co/112x112";
 
   return (
-    <div className="w-full bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] overflow-hidden flex flex-col sm:flex-row">
-      <div className="relative w-full sm:w-40 h-32 sm:h-40 shrink-0 bg-neutral-200">
+    <div className="w-full h-28 bg-white rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] overflow-hidden flex">
+      <div className="w-28 h-28 shrink-0 bg-neutral-200 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={imageUrl}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover"
+          className="w-full h-full object-cover"
         />
       </div>
-      <div className="p-4 flex-1 min-w-0 flex flex-col">
-        <span className="text-orange-700 text-sm font-normal leading-4">
-          {tematica}
+      <div className="flex-1 min-w-0 p-2.5 flex flex-col relative">
+        <span className="text-orange-700 text-xs font-medium leading-tight">
+          {formatoLabel}
         </span>
-        <h3 className="text-lg font-bold text-black leading-5 mt-1">
+        <span className="absolute top-2.5 right-2.5 text-neutral-400 text-[10px] font-normal leading-tight">
+          {formatFecha(text.updated_at)}
+        </span>
+        <h3 className="text-black text-sm font-bold leading-tight mt-0.5 pr-14">
           {displayTitle}
         </h3>
-        <p className="text-black text-sm font-normal leading-5 mt-1 line-clamp-2">
+        <p className="text-black text-xs font-normal leading-tight mt-0.5 line-clamp-2">
           {excerpt(text.body)}
         </p>
-        <div className="mt-auto pt-3 flex items-center gap-2 flex-wrap">
-          <div className="shrink-0 relative w-7 h-7 flex items-center justify-center">
+        <div className="mt-auto flex items-center gap-1.5">
+          <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
             <IconAvatarCircle className="absolute inset-0 w-full h-full" />
-            <span className="relative flex items-center justify-center text-black">
+            <span className="relative text-black">
               <IconPhoto className="w-3 h-3" />
             </span>
           </div>
-          <p className="text-black text-base leading-5">
-            Por <span className="font-bold">{authorName}</span>
+          <p className="text-black text-xs font-normal leading-tight">
+            Por <span className="font-semibold">{authorName}</span>
           </p>
         </div>
-        <span className="text-neutral-400 text-xs leading-3 mt-1">
-          {formatFecha(text.updated_at)}
-        </span>
       </div>
+    </div>
+  );
+}
+
+/** Encabezado de sección: título a la izquierda, icono de filtro a la derecha. */
+function SectionHeader({
+  title,
+  onFilter,
+  ariaLabelFilter,
+}: {
+  title: string;
+  onFilter: () => void;
+  ariaLabelFilter: string;
+}) {
+  return (
+    <div className="flex items-center justify-between w-full mb-2 gap-3">
+      <h2 className="text-black text-base font-bold leading-tight">
+        {title}
+      </h2>
+        <button
+        type="button"
+        onClick={onFilter}
+        className="p-1.5 -m-1.5 text-black"
+        aria-label={ariaLabelFilter}
+      >
+        <IconFilter className="size-5" />
+      </button>
     </div>
   );
 }
@@ -94,6 +138,38 @@ export default function ComunidadPage() {
   const [texts, setTexts] = useState<CommunityText[]>([]);
   const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+
+  const [palabrasConConteo, setPalabrasConConteo] = useState<PalabraConConteo[]>([]);
+  const [loadingBiblioteca, setLoadingBiblioteca] = useState(true);
+  const [busquedaBiblioteca, setBusquedaBiblioteca] = useState("");
+
+  const [formatos, setFormatos] = useState<Formato[]>([]);
+  const [showFiltroComunidad, setShowFiltroComunidad] = useState(false);
+  const [showFiltroSeguidos, setShowFiltroSeguidos] = useState(false);
+  const [formatoIdFiltroComunidad, setFormatoIdFiltroComunidad] = useState<string | null>(null);
+  const [formatoIdFiltroSeguidos, setFormatoIdFiltroSeguidos] = useState<string | null>(null);
+
+  const palabrasFiltradas = useMemo(() => {
+    const q = busquedaBiblioteca.trim().toLowerCase();
+    if (!q) return palabrasConConteo;
+    return palabrasConConteo.filter((p) =>
+      p.palabra.toLowerCase().includes(q)
+    );
+  }, [palabrasConConteo, busquedaBiblioteca]);
+
+  const textosComunidadFiltrados = useMemo(() => {
+    if (!formatoIdFiltroComunidad) return texts;
+    return texts.filter((t) => t.formato_id === formatoIdFiltroComunidad);
+  }, [texts, formatoIdFiltroComunidad]);
+
+  const bibliotecaRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.location.hash) return;
+    if (window.location.hash === "#biblioteca-significados") {
+      bibliotecaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -105,14 +181,19 @@ export default function ComunidadPage() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase
-        .from("texts")
-        .select("id, title, body, tematica, image_url, updated_at, user_id")
-        .eq("status", "published")
-        .order("updated_at", { ascending: false });
-
-      const rows = (data ?? []) as CommunityText[];
+      const [textsRes, palabrasData, formatosData] = await Promise.all([
+        supabase
+          .from("texts")
+          .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+          .eq("status", "published")
+          .order("updated_at", { ascending: false }),
+        fetchPalabrasConConteo().catch(() => []),
+        fetchFormatos().catch(() => []),
+      ]);
+      const rows = (textsRes.data ?? []) as CommunityText[];
       setTexts(rows);
+      setPalabrasConConteo(palabrasData);
+      setFormatos(formatosData);
 
       const userIds = [...new Set(rows.map((t) => t.user_id))];
       if (userIds.length > 0) {
@@ -129,11 +210,95 @@ export default function ComunidadPage() {
         setAuthorNames({});
       }
       setLoading(false);
+      setLoadingBiblioteca(false);
     })();
   }, []);
 
+  const FiltroFormatoPanel = ({
+    open,
+    onClose,
+    formatoId,
+    onSelectFormato,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    formatoId: string | null;
+    onSelectFormato: (id: string | null) => void;
+  }) => {
+    if (!open) return null;
+    const { ficcion, no_ficcion } = groupFormatosByCategoria(formatos);
+    return (
+      <>
+        <div
+          className="fixed inset-0 bg-black/40 z-40"
+          aria-hidden
+          onClick={onClose}
+        />
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-lg max-h-[70vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+            <h3 className="text-lg font-bold text-black">Filtrar por formato</h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 -m-2 text-black font-medium"
+              aria-label="Cerrar"
+            >
+              Cerrar
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1 p-4">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectFormato(null);
+                onClose();
+              }}
+              className={`w-full text-left py-3 px-4 rounded-xl text-base font-medium mb-2 ${
+                formatoId === null ? "bg-red/15 text-red" : "bg-neutral-100 text-black"
+              }`}
+            >
+              Todos
+            </button>
+            <p className="text-neutral-500 text-xs font-medium uppercase tracking-wider mt-4 mb-2">Ficción</p>
+            {ficcion.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  onSelectFormato(f.id);
+                  onClose();
+                }}
+                className={`w-full text-left py-3 px-4 rounded-xl text-base font-medium mb-1 ${
+                  formatoId === f.id ? "bg-red/15 text-red" : "bg-neutral-100 text-black"
+                }`}
+              >
+                {f.nombre}
+              </button>
+            ))}
+            <p className="text-neutral-500 text-xs font-medium uppercase tracking-wider mt-4 mb-2">No ficción</p>
+            {no_ficcion.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  onSelectFormato(f.id);
+                  onClose();
+                }}
+                className={`w-full text-left py-3 px-4 rounded-xl text-base font-medium mb-1 ${
+                  formatoId === f.id ? "bg-red/15 text-red" : "bg-neutral-100 text-black"
+                }`}
+              >
+                {f.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-100">
+    <div className="flex flex-col min-h-screen bg-neutral-100 overflow-hidden">
       <Header
         title="Comunidad"
         leftSlot={
@@ -141,48 +306,141 @@ export default function ComunidadPage() {
             <IconChevronLeft className="size-7" />
           </Link>
         }
-      />
-      <main className="flex-1 px-5 py-6 pb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-black leading-5">
-            Textos de escritores que quieren ser leídos
-          </h2>
-          <button
-            type="button"
-            className="text-black text-lg font-normal leading-5"
-            aria-label="Filtrar"
-          >
-            Filtrar
+        rightSlot={
+          <button type="button" className="p-2 -m-2 text-red" aria-label="Buscar">
+            <IconSearch className="size-8" />
           </button>
-        </div>
+        }
+      />
+      <div className="w-full h-0 border-t border-zinc-300 shrink-0" aria-hidden />
 
-        {loading ? (
-          <div className="bg-white rounded-2xl p-6 flex items-center justify-center">
-            <p className="text-neutral-400 text-sm">Cargando...</p>
-          </div>
-        ) : texts.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center text-center">
-            <p className="text-neutral-500 text-sm">
-              Aún no hay textos de la comunidad con &quot;Quiero que me lean&quot; activado.
+      <main className="flex-1 overflow-y-auto">
+        <div className="px-4 py-4 pb-6 mx-auto">
+          {/* Sección Comunidad: todos los textos públicos */}
+          <SectionHeader
+            title="Comunidad"
+            onFilter={() => setShowFiltroComunidad(true)}
+            ariaLabelFilter="Filtrar textos de la comunidad por formato"
+          />
+
+          <FiltroFormatoPanel
+            open={showFiltroComunidad}
+            onClose={() => setShowFiltroComunidad(false)}
+            formatoId={formatoIdFiltroComunidad}
+            onSelectFormato={setFormatoIdFiltroComunidad}
+          />
+
+          {loading ? (
+            <div className="bg-white rounded-xl p-4 flex items-center justify-center">
+              <p className="text-neutral-400 text-xs">Cargando...</p>
+            </div>
+          ) : textosComunidadFiltrados.length === 0 ? (
+            <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
+              <p className="text-neutral-500 text-xs">
+                Aún no hay textos públicos en la comunidad.
+              </p>
+              <Link
+                href="/inicio"
+                className="mt-2 text-orange-700 text-xs font-bold hover:underline"
+              >
+                Volver al inicio
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {textosComunidadFiltrados.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/inicio/comunidad/texto/${t.id}`}
+                  className="block"
+                  aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                >
+                  <CommunityTextCard
+                    text={t}
+                    authorName={authorNames[t.user_id] ?? "un miembro"}
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Sección Textos de escritores que seguís (por ahora vacía; luego: textos de perfiles seguidos) */}
+          <div className="mt-6">
+            <SectionHeader
+            title="Textos de escritores que seguís"
+            onFilter={() => setShowFiltroSeguidos(true)}
+            ariaLabelFilter="Filtrar textos de escritores que seguís"
+          />
+
+          <FiltroFormatoPanel
+            open={showFiltroSeguidos}
+            onClose={() => setShowFiltroSeguidos(false)}
+            formatoId={formatoIdFiltroSeguidos}
+            onSelectFormato={setFormatoIdFiltroSeguidos}
+          />
+
+          <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
+            <p className="text-neutral-500 text-xs">
+              Cuando sigas a escritores con perfil público, sus textos aparecerán aquí.
             </p>
-            <Link
-              href="/inicio"
-              className="mt-3 text-orange-700 text-sm font-bold hover:underline"
-            >
-              Volver al inicio
-            </Link>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {texts.map((t) => (
-              <CommunityTextCard
-                key={t.id}
-                text={t}
-                authorName={authorNames[t.user_id] ?? "un miembro"}
-              />
-            ))}
           </div>
-        )}
+
+          {/* Biblioteca de significados */}
+          <h2
+            ref={bibliotecaRef}
+            id="biblioteca-significados"
+            className="text-black text-base font-bold leading-tight mt-6 mb-2 scroll-mt-4"
+          >
+            Biblioteca de significados
+          </h2>
+          <label className="sr-only" htmlFor="busqueda-biblioteca">
+            Buscar por palabra en la biblioteca
+          </label>
+          <div className="w-full h-12 bg-zinc-100 rounded-[111px] mb-3 flex items-center gap-2 pl-4 pr-3 focus-within:ring-2 focus-within:ring-red/30 focus-within:ring-offset-2">
+            <IconSearch className="size-4 shrink-0 text-neutral-400" aria-hidden />
+            <input
+              id="busqueda-biblioteca"
+              type="search"
+              value={busquedaBiblioteca}
+              onChange={(e) => setBusquedaBiblioteca(e.target.value)}
+              placeholder="Buscar por palabra..."
+              className="flex-1 min-w-0 h-full bg-transparent text-black text-xs placeholder:text-neutral-400 focus:outline-none"
+              aria-label="Buscar por palabra en la biblioteca de significados"
+            />
+          </div>
+
+          {loadingBiblioteca ? (
+            <div className="bg-white rounded-xl p-4 flex items-center justify-center">
+              <p className="text-neutral-400 text-xs">Cargando...</p>
+            </div>
+          ) : palabrasFiltradas.length === 0 ? (
+            <div className="bg-white rounded-xl p-4 text-center">
+              <p className="text-neutral-500 text-xs">
+                {busquedaBiblioteca.trim()
+                  ? `Ninguna palabra coincide con "${busquedaBiblioteca.trim()}".`
+                  : "Aún no hay palabras con significados."}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] overflow-hidden">
+              {palabrasFiltradas.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/inicio/comunidad/significados/${p.id}`}
+                  className="flex items-center justify-between w-full px-4 py-2.5 text-left border-b border-gray-200 last:border-b-0 hover:bg-neutral-50 active:bg-neutral-100"
+                >
+                  <span className="text-black text-sm font-bold leading-tight">
+                    {p.palabra}
+                  </span>
+                  <span className="text-orange-700 text-xs font-normal leading-tight">
+                    {p.cantidad_significados} significado{p.cantidad_significados !== 1 ? "s" : ""}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

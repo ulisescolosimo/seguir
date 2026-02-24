@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  fetchPalabrasDiccionario,
+  fetchMisDefiniciones,
+  saveDefinicion,
+  elegirSiguientePalabra,
+} from "@/lib/diccionario";
+import type { PalabraDiccionario, DefinicionDiccionario } from "@/types/diccionario";
 import {
   IconAvatarCircle,
   IconPhoto,
@@ -17,6 +25,7 @@ type TextRecord = {
   body: string;
   status: "draft" | "published";
   updated_at: string;
+  consigna_id?: string | null;
 };
 
 function formatFecha(iso: string): string {
@@ -63,6 +72,7 @@ function TextCardLarge({
   body,
   updated_at,
   status,
+  hasConsigna,
   className = "",
 }: {
   id: string;
@@ -70,20 +80,28 @@ function TextCardLarge({
   body: string;
   updated_at: string;
   status: "draft" | "published";
+  hasConsigna?: boolean;
   className?: string;
 }) {
   const displayTitle = title.trim() || "Sin título";
   return (
     <div className={`h-[220px] flex flex-col bg-white rounded-2xl p-4 ${className}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2 shrink-0">
-        <h3 className="text-lg font-bold text-black leading-5">{displayTitle}</h3>
-        <span className="text-neutral-400 text-xs leading-3">
+      <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-hidden">
+        <span className="text-neutral-400 text-xs leading-3 shrink-0">
           Última edición {formatFecha(updated_at)}
         </span>
+        {hasConsigna && (
+          <span className="shrink-0 text-orange-700 text-xs font-medium leading-4">
+            Desde consigna
+          </span>
+        )}
+        <h3 className="text-lg font-bold text-black leading-5 line-clamp-2 shrink-0">
+          {displayTitle}
+        </h3>
+        <p className="text-black text-sm font-normal leading-5 line-clamp-4 min-h-0 overflow-hidden">
+          {excerpt(body, 220) || "Sin contenido aún."}
+        </p>
       </div>
-      <p className="text-black text-sm font-normal leading-5 mt-2 line-clamp-2 flex-1 min-h-0 overflow-hidden">
-        {excerpt(body) || "Sin contenido aún."}
-      </p>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-2 shrink-0">
         <span className="text-black text-sm font-semibold leading-4">
           {status === "draft" ? "Borrador" : "Publicado"}
@@ -152,7 +170,49 @@ function TextCardSmall({
   );
 }
 
-function PalabraCard() {
+function PalabraCard({
+  palabra,
+  definicionActual,
+  onOtraPalabra,
+  onPublicar,
+  disabled,
+}: {
+  palabra: PalabraDiccionario | null;
+  definicionActual: DefinicionDiccionario | undefined;
+  onOtraPalabra: () => void;
+  onPublicar: (definicion: string) => Promise<void>;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(definicionActual?.definicion ?? "");
+    setError(null);
+  }, [palabra?.id, definicionActual?.definicion]);
+
+  const handlePublicar = async () => {
+    if (!palabra) return;
+    setError(null);
+    setSaving(true);
+    try {
+      await onPublicar(draft);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!palabra) {
+    return (
+      <div className="bg-red-50 rounded-2xl p-4 mb-4">
+        <p className="text-neutral-500 text-sm">Cargando palabras...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-red-50 rounded-2xl p-4 mb-4">
       <div className="flex gap-3">
@@ -160,28 +220,38 @@ function PalabraCard() {
           <IconPalabraHeart className="w-6 h-6" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold text-black leading-5">Amor</h3>
+          <h3 className="text-lg font-bold text-black leading-5">{palabra.palabra}</h3>
           <p className="text-black text-sm font-normal leading-5 mt-1">
             Escribí qué significa para vos.
           </p>
         </div>
       </div>
-      <div className="bg-white rounded-2xl h-12 px-4 flex items-center mt-4">
-        <span className="text-neutral-400 text-sm leading-4">Definir palabra...</span>
-      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Definir palabra..."
+        rows={3}
+        disabled={disabled}
+        className="w-full mt-4 bg-white rounded-2xl px-4 py-3 text-black text-sm leading-5 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-red/30 resize-none"
+      />
+      {error && <p className="mt-2 text-red text-sm">{error}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
         <button
           type="button"
-          className="flex items-center gap-2 text-red text-xs font-medium uppercase leading-4"
+          onClick={onOtraPalabra}
+          disabled={disabled}
+          className="flex items-center gap-2 text-red text-xs font-medium uppercase leading-4 hover:underline disabled:opacity-50"
         >
           <IconOtraPalabra className="w-5 h-5" />
           Otra palabra
         </button>
         <button
           type="button"
-          className="h-10 px-6 bg-red text-white text-sm font-bold leading-4 tracking-wider rounded-[47px] hover:bg-red/90 transition-colors"
+          onClick={handlePublicar}
+          disabled={saving || disabled}
+          className="h-10 px-6 bg-red text-white text-sm font-bold leading-4 tracking-wider rounded-[47px] hover:bg-red/90 transition-colors disabled:opacity-60 disabled:pointer-events-none"
         >
-          PUBLICAR
+          {saving ? "Guardando…" : "PUBLICAR"}
         </button>
       </div>
     </div>
@@ -189,8 +259,22 @@ function PalabraCard() {
 }
 
 export default function InicioPage() {
+  const searchParams = useSearchParams();
+  const definirPalabraId = searchParams.get("definir");
+
   const [texts, setTexts] = useState<TextRecord[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Diccionario: palabras, definiciones del usuario, palabra actual
+  const [palabras, setPalabras] = useState<PalabraDiccionario[]>([]);
+  const [definiciones, setDefiniciones] = useState<Record<string, DefinicionDiccionario>>({});
+  const [palabraActual, setPalabraActual] = useState<PalabraDiccionario | null>(null);
+  const [loadingDiccionario, setLoadingDiccionario] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const elegirPalabra = useCallback(() => {
+    setPalabraActual(elegirSiguientePalabra(palabras, definiciones));
+  }, [palabras, definiciones]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -199,17 +283,70 @@ export default function InicioPage() {
       if (!user) {
         setTexts([]);
         setLoading(false);
+        setLoadingDiccionario(false);
+        setUserId(null);
         return;
       }
-      const { data } = await supabase
-        .from("texts")
-        .select("id, title, body, status, updated_at")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
-      setTexts((data as TextRecord[]) ?? []);
+      setUserId(user.id);
+      const [textsData, palabrasData, defsData] = await Promise.all([
+        supabase
+          .from("texts")
+          .select("id, title, body, status, updated_at, consigna_id")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false }),
+        fetchPalabrasDiccionario().catch(() => []),
+        fetchMisDefiniciones(user.id).catch(() => ({})),
+      ]);
+      setTexts((textsData.data as TextRecord[]) ?? []);
+      setPalabras(palabrasData);
+      setDefiniciones(defsData);
+      const siguiente = elegirSiguientePalabra(palabrasData, defsData);
+      setPalabraActual(siguiente);
       setLoading(false);
+      setLoadingDiccionario(false);
     })();
   }, []);
+
+  const diccionarioRef = useRef<HTMLDivElement>(null);
+
+  // Si llegamos con ?definir=palabraId, preseleccionar esa palabra y scroll al diccionario
+  useEffect(() => {
+    if (!definirPalabraId || palabras.length === 0) return;
+    const palabra = palabras.find((p) => p.id === definirPalabraId);
+    if (palabra) {
+      setPalabraActual(palabra);
+      diccionarioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [definirPalabraId, palabras]);
+
+  // Actualizar palabra actual cuando cambien palabras o definiciones (p. ej. tras guardar)
+  useEffect(() => {
+    if (palabras.length > 0 && !palabraActual)
+      setPalabraActual(elegirSiguientePalabra(palabras, definiciones));
+  }, [palabras, definiciones]);
+
+  const handlePublicarDefinicion = async (definicion: string) => {
+    const { data: { user } } = await createClient().auth.getUser();
+    if (!user || !palabraActual) return;
+    await saveDefinicion(user.id, palabraActual.id, definicion);
+    setDefiniciones((prev) => ({
+      ...prev,
+      [palabraActual.id]: {
+        user_id: user.id,
+        palabra_id: palabraActual.id,
+        definicion: definicion.trim() || "",
+        updated_at: new Date().toISOString(),
+      },
+    }));
+    setPalabraActual(elegirSiguientePalabra(palabras, {
+      ...definiciones,
+      [palabraActual.id]: {
+        user_id: user.id,
+        palabra_id: palabraActual.id,
+        definicion: definicion.trim() || "",
+      },
+    }));
+  };
 
   const carouselRef = useRef<HTMLDivElement>(null);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -257,6 +394,7 @@ export default function InicioPage() {
                   body={t.body}
                   updated_at={t.updated_at}
                   status={t.status}
+                  hasConsigna={!!t.consigna_id}
                 />
               </div>
             ))}
@@ -303,7 +441,24 @@ export default function InicioPage() {
         />
       </div>
 
-      <PalabraCard />
+      {userId && (
+        <>
+          <SectionHeader
+            title="Diccionario"
+            linkLabel="Ver más"
+            href="/inicio/comunidad#biblioteca-significados"
+          />
+          <div ref={diccionarioRef} id="diccionario" className="scroll-mt-4">
+          <PalabraCard
+            palabra={palabraActual}
+            definicionActual={palabraActual ? definiciones[palabraActual.id] : undefined}
+            onOtraPalabra={elegirPalabra}
+            onPublicar={handlePublicarDefinicion}
+            disabled={loadingDiccionario}
+          />
+          </div>
+        </>
+      )}
     </div>
   );
 }

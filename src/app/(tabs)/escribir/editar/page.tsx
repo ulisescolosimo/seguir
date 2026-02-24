@@ -4,6 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchConsignaById } from "@/lib/consignas";
+import type { Consigna } from "@/types/consignas";
 import { Header } from "@/components/layout/Header";
 import {
   IconChevronLeft,
@@ -28,9 +30,11 @@ export default function EditarPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const textId = searchParams.get("id");
+  const consignaId = searchParams.get("consigna");
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [consigna, setConsigna] = useState<Consigna | null>(null);
   const [showIABox, setShowIABox] = useState(true);
   const [showIAPanel, setShowIAPanel] = useState(false);
   const [showConfirmarPublicar, setShowConfirmarPublicar] = useState(false);
@@ -80,22 +84,42 @@ export default function EditarPage() {
     if (showIAPanel) fetchPreguntas();
   }, [showIAPanel]);
 
-  // Cargar borrador cuando hay id en la URL
+  // Cargar borrador cuando hay id en la URL (y consigna si el texto viene de una)
   useEffect(() => {
     if (!textId) return;
     const supabase = createClient();
     (async () => {
       const { data, error } = await supabase
         .from("texts")
-        .select("title, body")
+        .select("title, body, consigna_id")
         .eq("id", textId)
         .single();
       if (!error && data) {
         setTitle(data.title ?? "");
         setBody(data.body ?? "");
+        if (data.consigna_id) {
+          const c = await fetchConsignaById(data.consigna_id);
+          if (c) setConsigna(c);
+        }
       }
     })();
   }, [textId]);
+
+  // Prefill con consigna cuando el usuario viene desde Consignas
+  useEffect(() => {
+    if (!consignaId || textId) return;
+    let cancelled = false;
+    (async () => {
+      const consigna = await fetchConsignaById(consignaId);
+      if (!cancelled && consigna) {
+        setTitle(consigna.titulo);
+        setBody(consigna.descripcion ?? "");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [consignaId, textId]);
 
   async function handleGuardar() {
     setSaveError(null);
@@ -170,6 +194,23 @@ export default function EditarPage() {
         }
       />
       <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4">
+        {/* Card consigna cuando el texto viene de una consigna */}
+        {consigna && (
+          <div className="shrink-0 w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700 bg-red-50 p-4 mb-4">
+            <span className="text-orange-700 text-sm font-normal font-['Inter'] leading-4">
+              {consigna.formatos_texto?.nombre ?? consigna.tipo}
+            </span>
+            <h2 className="mt-1 text-black text-lg font-bold font-['Inter'] leading-5">
+              {consigna.titulo}
+            </h2>
+            {consigna.descripcion ? (
+              <p className="mt-1 text-black text-sm font-normal font-['Inter'] leading-5">
+                {consigna.descripcion}
+              </p>
+            ) : null}
+          </div>
+        )}
+
         {/* Título editable */}
         <div className="shrink-0 w-full mb-2">
           <input

@@ -1,6 +1,6 @@
 /** Items del bottom nav: label y href para next/link */
 export const bottomNavItems = [
-  { label: "Escribir", href: "/escribir" },
+  { label: "Escribir", href: "/escribir/editar" },
   { label: "Consignas", href: "/consignas" },
   { label: "Inicio", href: "/inicio" },
   { label: "Recursos", href: "/recursos" },
@@ -13,6 +13,7 @@ export type NavItem = (typeof bottomNavItems)[number];
 export const tabTitles: Record<string, string> = {
   "/inicio": "Inicio",
   "/escribir": "Escribir",
+  "/escribir/editar": "Escribir",
   "/consignas": "Consignas",
   "/recursos": "Recursos",
   "/perfil": "Perfil",
