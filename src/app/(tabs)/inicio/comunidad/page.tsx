@@ -62,8 +62,8 @@ function CommunityTextCard({
 }) {
   const displayTitle = text.title?.trim() || "Sin título";
   const formatoLabel = (
-    text.tematica?.trim() ||
     text.formatos_texto?.[0]?.nombre ||
+    text.tematica?.trim() ||
     "TEXTO"
   ).toUpperCase();
   const imageUrl = text.image_url || "https://placehold.co/112x112";
@@ -107,29 +107,58 @@ function CommunityTextCard({
   );
 }
 
-/** Encabezado de sección: título a la izquierda, icono de filtro a la derecha. */
+/** Encabezado de sección: título, icono de filtro y opcionalmente badge de filtro activo con cruz para quitar. */
 function SectionHeader({
   title,
   onFilter,
   ariaLabelFilter,
+  activeFilterName,
+  onClearFilter,
 }: {
   title: string;
   onFilter: () => void;
   ariaLabelFilter: string;
+  activeFilterName?: string | null;
+  onClearFilter?: () => void;
 }) {
+  const isActive = Boolean(activeFilterName?.trim());
   return (
-    <div className="flex items-center justify-between w-full mb-2 gap-3">
-      <h2 className="text-black text-base font-bold leading-tight">
-        {title}
-      </h2>
+    <div className="mb-2">
+      <div className="flex items-center justify-between w-full gap-3">
+        <h2 className="text-black text-base font-bold leading-tight">
+          {title}
+        </h2>
         <button
-        type="button"
-        onClick={onFilter}
-        className="p-1.5 -m-1.5 text-black"
-        aria-label={ariaLabelFilter}
-      >
-        <IconFilter className="size-5" />
-      </button>
+          type="button"
+          onClick={onFilter}
+          className={`p-1.5 -m-1.5 ${isActive ? "text-red" : "text-black"}`}
+          aria-label={isActive ? `Filtro activo: ${activeFilterName}. ${ariaLabelFilter}` : ariaLabelFilter}
+          aria-pressed={isActive}
+        >
+          <IconFilter className="size-5" />
+        </button>
+      </div>
+      {isActive && onClearFilter && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1 rounded-full bg-red/15 pl-3 pr-1 py-1 text-xs font-medium text-black"
+            role="status"
+            aria-label={`Filtro activo: ${activeFilterName}`}
+          >
+            {activeFilterName}
+            <button
+              type="button"
+              onClick={onClearFilter}
+              className="rounded-full p-1 -m-0.5 text-neutral-600 hover:bg-red/25 hover:text-black focus:outline-none focus:ring-2 focus:ring-red/50"
+              aria-label="Quitar filtro"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                <path d="M11 3L3 11M3 3l8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -159,8 +188,14 @@ export default function ComunidadPage() {
 
   const textosComunidadFiltrados = useMemo(() => {
     if (!formatoIdFiltroComunidad) return texts;
-    return texts.filter((t) => t.formato_id === formatoIdFiltroComunidad);
-  }, [texts, formatoIdFiltroComunidad]);
+    const selectedFormato = formatos.find((f) => f.id === formatoIdFiltroComunidad);
+    const nombreFormatoLower = selectedFormato?.nombre?.trim().toLowerCase();
+    return texts.filter((t) => {
+      if (t.formato_id === formatoIdFiltroComunidad) return true;
+      if (nombreFormatoLower && t.tematica?.trim().toLowerCase() === nombreFormatoLower) return true;
+      return false;
+    });
+  }, [texts, formatoIdFiltroComunidad, formatos]);
 
   const bibliotecaRef = useRef<HTMLHeadingElement>(null);
 
@@ -321,6 +356,8 @@ export default function ComunidadPage() {
             title="Comunidad"
             onFilter={() => setShowFiltroComunidad(true)}
             ariaLabelFilter="Filtrar textos de la comunidad por formato"
+            activeFilterName={formatoIdFiltroComunidad ? formatos.find((f) => f.id === formatoIdFiltroComunidad)?.nombre ?? null : null}
+            onClearFilter={() => setFormatoIdFiltroComunidad(null)}
           />
 
           <FiltroFormatoPanel
@@ -370,6 +407,8 @@ export default function ComunidadPage() {
             title="Textos de escritores que seguís"
             onFilter={() => setShowFiltroSeguidos(true)}
             ariaLabelFilter="Filtrar textos de escritores que seguís"
+            activeFilterName={formatoIdFiltroSeguidos ? formatos.find((f) => f.id === formatoIdFiltroSeguidos)?.nombre ?? null : null}
+            onClearFilter={() => setFormatoIdFiltroSeguidos(null)}
           />
 
           <FiltroFormatoPanel

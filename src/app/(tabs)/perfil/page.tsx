@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+const BUCKET_IMAGENES = "text-images";
+const MAX_AVATAR_SIZE_MB = 2;
 
 type RemindersValue = 0 | 1 | 2 | 3;
 
@@ -41,6 +45,9 @@ function PrivacySwitch({
 }
 
 export default function PerfilPage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [remindersPerWeek, setRemindersPerWeek] = useState<RemindersValue>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +55,22 @@ export default function PerfilPage() {
   const [quieroQueMeComenten, setQuieroQueMeComenten] = useState(true);
   const [comentariosPublicos, setComentariosPublicos] = useState(true);
   const [quieroQueCompartan, setQuieroQueCompartan] = useState(true);
+
+  const [email, setEmail] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -59,14 +82,19 @@ export default function PerfilPage() {
         setLoading(false);
         return;
       }
+      setEmail(user.email ?? null);
       const { data } = await supabase
         .from("profiles")
         .select(
-          "reminders_per_week, want_to_be_read, want_comments, public_comments, allow_share_texts"
+          "first_name, last_name, username, avatar_url, reminders_per_week, want_to_be_read, want_comments, public_comments, allow_share_texts"
         )
         .eq("id", user.id)
         .single();
       if (data) {
+        setFirstName((data.first_name as string) ?? "");
+        setLastName((data.last_name as string) ?? "");
+        setUsername((data.username as string) ?? "");
+        setAvatarUrl((data.avatar_url as string) ?? null);
         if (typeof data.reminders_per_week === "number") {
           const v = Math.min(
             3,
@@ -149,33 +177,256 @@ export default function PerfilPage() {
     setSaving(false);
   }
 
+  function openEdit() {
+    setEditFirstName(firstName);
+    setEditLastName(lastName);
+    setEditUsername(username);
+    setEditAvatarFile(null);
+    setEditAvatarPreview(avatarUrl);
+    setProfileError(null);
+    setEditOpen(true);
+  }
+
+  function closeEdit() {
+    setEditOpen(false);
+    setEditAvatarFile(null);
+    if (editAvatarPreview && editAvatarPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(editAvatarPreview);
+    }
+    setEditAvatarPreview(null);
+  }
+
+  function handleEditAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) {
+      if (f.size > MAX_AVATAR_SIZE_MB * 1024 * 1024) {
+        setProfileError(`La imagen debe ser menor a ${MAX_AVATAR_SIZE_MB} MB.`);
+        return;
+      }
+      if (editAvatarPreview?.startsWith("blob:")) URL.revokeObjectURL(editAvatarPreview);
+      setEditAvatarFile(f);
+      setEditAvatarPreview(URL.createObjectURL(f));
+      setProfileError(null);
+    }
+  }
+
+  async function saveProfile() {
+    setProfileError(null);
+    setSavingProfile(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setSavingProfile(false);
+      return;
+    }
+    let newAvatarUrl: string | null = avatarUrl;
+    if (editAvatarFile) {
+      const ext = editAvatarFile.name.split(".").pop() || "jpg";
+      const path = `avatars/${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_IMAGENES)
+        .upload(path, editAvatarFile, { cacheControl: "3600", upsert: false });
+      if (uploadError) {
+        setProfileError(
+          uploadError.message.includes("Bucket not found")
+            ? "Configurá el bucket en Supabase Storage."
+            : uploadError.message
+        );
+        setSavingProfile(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage
+        .from(BUCKET_IMAGENES)
+        .getPublicUrl(path);
+      newAvatarUrl = urlData.publicUrl;
+    }
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          first_name: editFirstName.trim() || null,
+          last_name: editLastName.trim() || null,
+          username: normalizeUsername(editUsername) ?? null,
+          avatar_url: newAvatarUrl,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+    if (updateError) {
+      setProfileError(updateError.message);
+      setSavingProfile(false);
+      return;
+    }
+    setFirstName(editFirstName.trim());
+    setLastName(editLastName.trim());
+    setUsername(normalizeUsername(editUsername) ?? "");
+    setAvatarUrl(newAvatarUrl);
+    setSavingProfile(false);
+    closeEdit();
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.refresh();
+    router.push("/login");
+  }
+
+  const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || "Usuario";
+  const usernameDisplay = username.trim()
+    ? `@${username.trim().replace(/^@+/, "")}`
+    : email
+      ? `@${email.split("@")[0]}`
+      : "";
+
+  function normalizeUsername(value: string): string | null {
+    const v = value.trim().replace(/^@+/, "").trim();
+    return v || null;
+  }
+
   return (
     <div className="w-full max-w-[384px] mx-auto min-h-screen bg-neutral-100 overflow-hidden relative">
 
+      {/* Modal Editar perfil */}
+      {editOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40"
+            aria-hidden
+            onClick={closeEdit}
+          />
+          <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-lg p-5 max-w-[384px] mx-auto">
+            <h3 className="text-lg font-bold text-black mb-4">Editar perfil</h3>
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-20 h-20 rounded-full bg-orange-700/20 flex items-center justify-center overflow-hidden"
+                >
+                  {editAvatarPreview ? (
+                    <img
+                      src={editAvatarPreview}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg width="28" height="28" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M7.08333 29.75C6.30417 29.75 5.63739 29.4728 5.083 28.9184C4.52861 28.364 4.25094 27.6968 4.25 26.9167V7.08333C4.25 6.30417 4.52767 5.63739 5.083 5.083C5.63833 4.52861 6.30511 4.25094 7.08333 4.25H26.9167C27.6958 4.25 28.3631 4.52767 28.9184 5.083C29.4737 5.63833 29.7509 6.30511 29.75 7.08333V26.9167C29.75 27.6958 29.4728 28.3631 28.9184 28.9184C28.364 29.4737 27.6968 29.7509 26.9167 29.75H7.08333ZM8.5 24.0833H25.5L20.1875 17L15.9375 22.6667L12.75 18.4167L8.5 24.0833Z"
+                        fill="#CF3617"
+                      />
+                    </svg>
+                  )}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleEditAvatarChange}
+                />
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-neutral-700">Nombre</span>
+                <input
+                  type="text"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="Ej. María"
+                  className="h-11 px-4 rounded-xl border border-neutral-200 bg-white text-black text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-neutral-700">Apellido</span>
+                <input
+                  type="text"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Ej. García"
+                  className="h-11 px-4 rounded-xl border border-neutral-200 bg-white text-black text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-neutral-700">Usuario</span>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  placeholder="mi_usuario (se mostrará como @mi_usuario)"
+                  className="h-11 px-4 rounded-xl border border-neutral-200 bg-white text-black text-sm"
+                />
+              </label>
+              {profileError && (
+                <p className="text-sm text-red-600" role="alert">{profileError}</p>
+              )}
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="flex-1 h-11 rounded-xl border border-neutral-300 text-black text-sm font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={saveProfile}
+                  disabled={savingProfile}
+                  className="flex-1 h-11 rounded-xl bg-orange-700 text-white text-sm font-bold disabled:opacity-60"
+                >
+                  {savingProfile ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="pb-8 px-5">
-        {/* Avatar y nombre (hardcodeado por ahora) */}
+        {/* Avatar y nombre */}
         <div className="flex flex-col items-center pt-10">
-          <div className="w-28 h-28 bg-orange-700/20 rounded-[57px] flex items-center justify-center relative">
-            <svg
-              width="34"
-              height="34"
-              viewBox="0 0 34 34"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="absolute"
-            >
-              <path
-                d="M7.08333 29.75C6.30417 29.75 5.63739 29.4728 5.083 28.9184C4.52861 28.364 4.25094 27.6968 4.25 26.9167V7.08333C4.25 6.30417 4.52767 5.63739 5.083 5.083C5.63833 4.52861 6.30511 4.25094 7.08333 4.25H26.9167C27.6958 4.25 28.3631 4.52767 28.9184 5.083C29.4737 5.63833 29.7509 6.30511 29.75 7.08333V26.9167C29.75 27.6958 29.4728 28.3631 28.9184 28.9184C28.364 29.4737 27.6968 29.7509 26.9167 29.75H7.08333ZM8.5 24.0833H25.5L20.1875 17L15.9375 22.6667L12.75 18.4167L8.5 24.0833Z"
-                fill="#CF3617"
+          <div className="w-28 h-28 bg-orange-700/20 rounded-[57px] flex items-center justify-center relative overflow-hidden">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt=""
+                className="w-full h-full object-cover"
               />
-            </svg>
+            ) : (
+              <svg
+                width="34"
+                height="34"
+                viewBox="0 0 34 34"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute"
+              >
+                <path
+                  d="M7.08333 29.75C6.30417 29.75 5.63739 29.4728 5.083 28.9184C4.52861 28.364 4.25094 27.6968 4.25 26.9167V7.08333C4.25 6.30417 4.52767 5.63739 5.083 5.083C5.63833 4.52861 6.30511 4.25094 7.08333 4.25H26.9167C27.6958 4.25 28.3631 4.52767 28.9184 5.083C29.4737 5.63833 29.7509 6.30511 29.75 7.08333V26.9167C29.75 27.6958 29.4728 28.3631 28.9184 28.9184C28.364 29.4737 27.6968 29.7509 26.9167 29.75H7.08333ZM8.5 24.0833H25.5L20.1875 17L15.9375 22.6667L12.75 18.4167L8.5 24.0833Z"
+                  fill="#CF3617"
+                />
+              </svg>
+            )}
           </div>
           <p className="text-black text-lg font-bold font-['Inter'] leading-5 mt-4">
-            Clara Dominguez
+            {displayName}
           </p>
-          <p className="text-orange-700 text-sm font-normal font-['Inter'] leading-5">
-            @Claradom
-          </p>
+          {usernameDisplay ? (
+            <p className="text-orange-700 text-sm font-normal font-['Inter'] leading-5">
+              {usernameDisplay}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={openEdit}
+            className="mt-2 text-orange-700 text-sm font-bold font-['Inter'] leading-4 underline"
+          >
+            Editar perfil
+          </button>
         </div>
 
         {/* Hábitos de escritura */}
@@ -482,6 +733,14 @@ export default function PerfilPage() {
               />
             </svg>
           </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="w-full flex items-center justify-center gap-2 py-3 text-orange-700 text-lg font-bold font-['Inter'] leading-5 border-t border-neutral-200 disabled:opacity-60"
+          >
+            {loggingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+          </button>
         </section>
       </div>
     </div>
