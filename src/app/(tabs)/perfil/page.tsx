@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { CommunityTextCard } from "@/components/community/CommunityTextCard";
+import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 
 const BUCKET_IMAGENES = "text-images";
 const MAX_AVATAR_SIZE_MB = 2;
@@ -72,6 +74,16 @@ export default function PerfilPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const [savedTexts, setSavedTexts] = useState<CommunityTextCardData[]>([]);
+  const [savedAuthorNames, setSavedAuthorNames] = useState<Record<string, string>>({});
+  const [savedAuthorAvatars, setSavedAuthorAvatars] = useState<Record<string, string>>({});
+  const [loadingSaved, setLoadingSaved] = useState(false);
+
+  const [followingTexts, setFollowingTexts] = useState<CommunityTextCardData[]>([]);
+  const [followingAuthorNames, setFollowingAuthorNames] = useState<Record<string, string>>({});
+  const [followingAuthorAvatars, setFollowingAuthorAvatars] = useState<Record<string, string>>({});
+  const [loadingFollowing, setLoadingFollowing] = useState(false);
+
   useEffect(() => {
     (async () => {
       const supabase = createClient();
@@ -112,6 +124,109 @@ export default function PerfilPage() {
           setQuieroQueCompartan(data.allow_share_texts);
       }
       setLoading(false);
+
+      // Textos guardados del usuario
+      if (user) {
+        setLoadingSaved(true);
+        try {
+          const { data: savedRows } = await supabase
+            .from("saved_texts")
+            .select("text_id, created_at")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+          const textIds = (savedRows ?? []).map((r) => r.text_id);
+          if (textIds.length > 0) {
+            const { data: textsData } = await supabase
+              .from("texts")
+              .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+              .in("id", textIds)
+              .eq("status", "published");
+            const textMap: Record<string, CommunityTextCardData> = {};
+            for (const t of textsData ?? []) {
+              textMap[t.id] = t as unknown as CommunityTextCardData;
+            }
+            const ordered = textIds.map((id) => textMap[id]).filter(Boolean);
+            setSavedTexts(ordered);
+            const authorIds = [...new Set(ordered.map((t) => t.user_id))];
+            if (authorIds.length > 0) {
+              const { data: profilesData } = await supabase
+                .from("profiles")
+                .select("id, first_name, last_name, avatar_url")
+                .in("id", authorIds);
+              const nameMap: Record<string, string> = {};
+              const avatarMap: Record<string, string> = {};
+              for (const p of profilesData ?? []) {
+                const name = [p.first_name?.trim(), p.last_name?.trim()].filter(Boolean).join(" ");
+                nameMap[p.id] = name || "un miembro";
+                if (p.avatar_url?.trim()) avatarMap[p.id] = p.avatar_url.trim();
+              }
+              setSavedAuthorNames(nameMap);
+              setSavedAuthorAvatars(avatarMap);
+            } else {
+              setSavedAuthorNames({});
+              setSavedAuthorAvatars({});
+            }
+          } else {
+            setSavedTexts([]);
+            setSavedAuthorNames({});
+            setSavedAuthorAvatars({});
+          }
+        } catch {
+          setSavedTexts([]);
+        } finally {
+          setLoadingSaved(false);
+        }
+      }
+
+      // Textos de quienes sigo
+      if (user) {
+        setLoadingFollowing(true);
+        try {
+          const { data: followsRows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", user.id);
+          const followingIds = (followsRows ?? []).map((r) => r.following_id);
+          if (followingIds.length > 0) {
+            const { data: textsData } = await supabase
+              .from("texts")
+              .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+              .in("user_id", followingIds)
+              .eq("status", "published")
+              .order("updated_at", { ascending: false })
+              .limit(20);
+            const ordered = (textsData ?? []) as unknown as CommunityTextCardData[];
+            setFollowingTexts(ordered);
+            const authorIds = [...new Set(ordered.map((t) => t.user_id))];
+            if (authorIds.length > 0) {
+              const { data: profilesData } = await supabase
+                .from("profiles")
+                .select("id, first_name, last_name, avatar_url")
+                .in("id", authorIds);
+              const nameMap: Record<string, string> = {};
+              const avatarMap: Record<string, string> = {};
+              for (const p of profilesData ?? []) {
+                const name = [p.first_name?.trim(), p.last_name?.trim()].filter(Boolean).join(" ");
+                nameMap[p.id] = name || "un miembro";
+                if (p.avatar_url?.trim()) avatarMap[p.id] = p.avatar_url.trim();
+              }
+              setFollowingAuthorNames(nameMap);
+              setFollowingAuthorAvatars(avatarMap);
+            } else {
+              setFollowingAuthorNames({});
+              setFollowingAuthorAvatars({});
+            }
+          } else {
+            setFollowingTexts([]);
+            setFollowingAuthorNames({});
+            setFollowingAuthorAvatars({});
+          }
+        } catch {
+          setFollowingTexts([]);
+        } finally {
+          setLoadingFollowing(false);
+        }
+      }
     })();
   }, []);
 
@@ -471,49 +586,88 @@ export default function PerfilPage() {
           </div>
         </section>
 
+        {/* Textos de quienes sigo */}
+        <section className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-black text-lg font-bold font-['Inter'] leading-5">
+              Textos de quienes sigo
+            </h2>
+            {followingTexts.length > 0 && (
+              <Link
+                href="/inicio/comunidad"
+                className="text-orange-700 text-sm font-bold font-['Inter'] leading-4"
+              >
+                Ver comunidad
+              </Link>
+            )}
+          </div>
+          {loadingFollowing ? (
+            <p className="text-neutral-500 text-sm">Cargando...</p>
+          ) : followingTexts.length === 0 ? (
+            <p className="text-neutral-500 text-sm">
+              Seguí a escritores desde la comunidad para ver sus textos aquí.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {followingTexts.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/inicio/comunidad/texto/${t.id}`}
+                  className="block"
+                  aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                >
+                  <CommunityTextCard
+                    text={t}
+                    authorName={followingAuthorNames[t.user_id] ?? "un miembro"}
+                    authorAvatarUrl={followingAuthorAvatars[t.user_id] ?? null}
+                    imageWidth="w-28"
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Guardados */}
         <section className="mt-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-black text-lg font-bold font-['Inter'] leading-5">
               Guardados
             </h2>
-            <Link
-              href="#"
-              className="text-orange-700 text-sm font-bold font-['Inter'] leading-4"
-            >
-              Ver todos
-            </Link>
+            {savedTexts.length > 0 && (
+              <Link
+                href="/inicio/comunidad"
+                className="text-orange-700 text-sm font-bold font-['Inter'] leading-4"
+              >
+                Ver todos
+              </Link>
+            )}
           </div>
-          <div className="flex gap-4">
-            <div className="w-48 h-20 bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] p-3 flex flex-col justify-between">
-              <p className="text-black text-sm font-bold font-['Inter'] leading-4">
-                El susurro del viento
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#DADADA]" />
-                <span className="text-black text-xs font-normal font-['Inter'] leading-4">
-                  Por{" "}
-                  <span className="text-black text-xs font-bold font-['Inter'] leading-4">
-                    Adrián L.
-                  </span>
-                </span>
-              </div>
+          {loadingSaved ? (
+            <p className="text-neutral-500 text-sm">Cargando guardados...</p>
+          ) : savedTexts.length === 0 ? (
+            <p className="text-neutral-500 text-sm">
+              Aún no tenés textos guardados. Guardá textos desde la comunidad para verlos aquí.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {savedTexts.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/inicio/comunidad/texto/${t.id}`}
+                  className="block"
+                  aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                >
+                  <CommunityTextCard
+                    text={t}
+                    authorName={savedAuthorNames[t.user_id] ?? "un miembro"}
+                    authorAvatarUrl={savedAuthorAvatars[t.user_id] ?? null}
+                    imageWidth="w-28"
+                  />
+                </Link>
+              ))}
             </div>
-            <div className="w-48 h-20 bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] p-3 flex flex-col justify-between">
-              <p className="text-black text-sm font-bold font-['Inter'] leading-4">
-                Lorem Ipsum
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-[#DADADA]" />
-                <span className="text-black text-xs font-normal font-['Inter'] leading-4">
-                  Por{" "}
-                  <span className="text-black text-xs font-bold font-['Inter'] leading-4">
-                    Adrián L.
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
+          )}
         </section>
 
         {/* Recordatorios amorosos - conectado a profiles */}

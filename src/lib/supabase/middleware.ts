@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseEnv } from "./env";
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  // Permitir /forgot-password y /reset-password sin lógica de auth y preservar query params
+  if (pathname === "/forgot-password" || pathname === "/reset-password") {
+    return NextResponse.next({ request });
+  }
+
   const { url, anonKey } = getSupabaseEnv();
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
@@ -26,13 +32,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-  const isLoginPage = pathname === "/login";
-  const isSignupPage = pathname === "/signup";
-  const isOnboardingPage = pathname === "/onboarding/seguir";
+  const pathnameFromUrl = request.nextUrl.pathname;
+  const isLoginPage = pathnameFromUrl === "/login";
+  const isSignupPage = pathnameFromUrl === "/signup";
+  const isOnboardingPage = pathnameFromUrl === "/onboarding/seguir";
 
   const publicPaths = ["/login", "/signup"];
-  const isPublicPath = publicPaths.some((p) => pathname === p || pathname.startsWith(p + "/"));
+  const isPublicPath = publicPaths.some((p) => pathnameFromUrl === p || pathnameFromUrl.startsWith(p + "/"));
 
   function redirectTo(pathname: string) {
     const url = request.nextUrl.clone();

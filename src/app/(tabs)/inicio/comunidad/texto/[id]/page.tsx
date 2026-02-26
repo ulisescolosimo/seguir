@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   IconChevronLeft,
-  IconSearch,
   IconAvatarCircle,
   IconPhoto,
   IconShare,
   IconBookmark,
+  IconBookmarkFilled,
+  IconComment,
 } from "@/components/ui/Icons";
 import { Header } from "@/components/layout/Header";
+import { useToast } from "@/components/ui/Toast";
 
 type TextData = {
   id: string;
@@ -23,6 +25,15 @@ type TextData = {
   image_url: string | null;
   updated_at: string;
   user_id: string;
+};
+
+type CommentData = {
+  id: string;
+  text_id: string;
+  user_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
 };
 
 function formatFecha(iso: string): string {
@@ -38,6 +49,19 @@ function formatFecha(iso: string): string {
   }
 }
 
+function formatFechaCorta(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-AR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
 function authorDisplayName(firstName: string | null, lastName: string | null): string {
   const n = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
   return n || "un miembro";
@@ -46,9 +70,22 @@ function authorDisplayName(firstName: string | null, lastName: string | null): s
 export default function TextoComunidadPage() {
   const params = useParams();
   const textId = params?.id as string | undefined;
+  const { toast } = useToast();
 
   const [text, setText] = useState<TextData | null>(null);
   const [authorName, setAuthorName] = useState<string>("");
+  const [authorAllowsComments, setAuthorAllowsComments] = useState(true);
+  const [authorPublicComments, setAuthorPublicComments] = useState(true);
+  const [authorAllowsShare, setAuthorAllowsShare] = useState(true);
+  const [authorAvatarUrl, setAuthorAvatarUrl] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [newComment, setNewComment] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,12 +98,15 @@ export default function TextoComunidadPage() {
     const supabase = createClient();
     (async () => {
       try {
-        const { data: textRow, error: textError } = await supabase
-          .from("texts")
-          .select("id, title, body, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
-          .eq("id", textId)
-          .eq("status", "published")
-          .single();
+        const [{ data: { user } }, { data: textRow, error: textError }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from("texts")
+            .select("id, title, body, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+            .eq("id", textId)
+            .eq("status", "published")
+            .single(),
+        ]);
 
         if (textError || !textRow) {
           setError("No se encontró el texto o no está publicado.");
@@ -74,12 +114,14 @@ export default function TextoComunidadPage() {
           return;
         }
 
+        if (user) setCurrentUser({ id: user.id });
+
         const row = textRow as unknown as TextData;
         setText(row);
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("first_name, last_name")
+          .select("first_name, last_name, want_comments, public_comments, allow_share_texts, avatar_url")
           .eq("id", row.user_id)
           .single();
 
@@ -89,6 +131,10 @@ export default function TextoComunidadPage() {
             (profile?.last_name as string) ?? null
           )
         );
+        setAuthorAllowsComments(profile?.want_comments === true);
+        setAuthorPublicComments(profile?.public_comments !== false);
+        setAuthorAllowsShare(profile?.allow_share_texts === true);
+        setAuthorAvatarUrl(profile?.avatar_url?.trim() || null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Error al cargar el texto.");
       } finally {
@@ -96,6 +142,139 @@ export default function TextoComunidadPage() {
       }
     })();
   }, [textId]);
+
+  // Cargar si el usuario tiene guardado este texto
+  useEffect(() => {
+    if (!textId || !currentUser) {
+      setIsSaved(false);
+      return;
+    }
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("saved_texts")
+        .select("text_id")
+        .eq("user_id", currentUser.id)
+        .eq("text_id", textId)
+        .maybeSingle();
+      setIsSaved(!!data);
+    })();
+  }, [textId, currentUser]);
+
+  const loadComments = useCallback(async () => {
+    if (!textId) return;
+    setLoadingComments(true);
+    setCommentError(null);
+    try {
+      const supabase = createClient();
+      const { data, error: commentsError } = await supabase
+        .from("text_comments")
+        .select("id, text_id, user_id, author_name, body, created_at")
+        .eq("text_id", textId)
+        .order("created_at", { ascending: true });
+
+      if (commentsError) {
+        setCommentError("No se pudieron cargar los comentarios.");
+        setComments([]);
+        return;
+      }
+      setComments((data as CommentData[]) ?? []);
+    } catch {
+      setCommentError("Error al cargar comentarios.");
+      setComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [textId]);
+
+  useEffect(() => {
+    if (!text) return;
+    const canSeeComments = authorPublicComments || (currentUser && text.user_id === currentUser.id);
+    if (canSeeComments) loadComments();
+    else setComments([]);
+  }, [text, authorPublicComments, currentUser, loadComments]);
+
+  async function handleSubmitComment(e: React.FormEvent) {
+    e.preventDefault();
+    const body = newComment.trim();
+    if (!body || !textId || !currentUser) return;
+    setSubmittingComment(true);
+    setCommentError(null);
+    const supabase = createClient();
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", currentUser.id)
+        .single();
+      const authorNameStr = authorDisplayName(
+        (profile?.first_name as string) ?? null,
+        (profile?.last_name as string) ?? null
+      );
+      const { error: insertError } = await supabase.from("text_comments").insert({
+        text_id: textId,
+        user_id: currentUser.id,
+        author_name: authorNameStr,
+        body,
+      });
+      if (insertError) {
+        setCommentError(insertError.message || "No se pudo publicar el comentario.");
+        return;
+      }
+      setNewComment("");
+      await loadComments();
+    } catch {
+      setCommentError("Error al publicar el comentario.");
+    } finally {
+      setSubmittingComment(false);
+    }
+  }
+
+  async function handleToggleSave() {
+    if (!textId || !currentUser || loadingSaved) return;
+    setLoadingSaved(true);
+    const supabase = createClient();
+    try {
+      if (isSaved) {
+        await supabase.from("saved_texts").delete().eq("user_id", currentUser.id).eq("text_id", textId);
+        setIsSaved(false);
+      } else {
+        await supabase.from("saved_texts").insert({ user_id: currentUser.id, text_id: textId });
+        setIsSaved(true);
+      }
+    } catch {
+      // mantener estado anterior en error
+    } finally {
+      setLoadingSaved(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!authorAllowsShare || !textId || !text) return;
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/cuento/${textId}`;
+    const title = text.title?.trim() || "Sin título";
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title, url });
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          try {
+            await navigator.clipboard.writeText(url);
+            toast("Link copiado", "success");
+          } catch {
+            toast("No se pudo copiar el link", "error");
+          }
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("Link copiado", "success");
+      } catch {
+        toast("No se pudo copiar el link", "error");
+      }
+    }
+  }
 
   if (loading) {
     return (
@@ -106,11 +285,6 @@ export default function TextoComunidadPage() {
             <Link href="/inicio/comunidad" className="p-2 -m-2 text-black" aria-label="Volver">
               <IconChevronLeft className="size-7" />
             </Link>
-          }
-          rightSlot={
-            <button type="button" className="p-2 -m-2 text-red" aria-label="Buscar">
-              <IconSearch className="size-8" />
-            </button>
           }
         />
         <main className="flex-1 flex items-center justify-center px-5">
@@ -129,11 +303,6 @@ export default function TextoComunidadPage() {
             <Link href="/inicio/comunidad" className="p-2 -m-2 text-black" aria-label="Volver">
               <IconChevronLeft className="size-7" />
             </Link>
-          }
-          rightSlot={
-            <button type="button" className="p-2 -m-2 text-red" aria-label="Buscar">
-              <IconSearch className="size-8" />
-            </button>
           }
         />
         <main className="flex-1 px-5 py-6">
@@ -168,11 +337,6 @@ export default function TextoComunidadPage() {
             <IconChevronLeft className="size-7" />
           </Link>
         }
-        rightSlot={
-          <button type="button" className="p-2 -m-2 text-red" aria-label="Buscar">
-            <IconSearch className="size-8" />
-          </button>
-        }
       />
       <div className="w-full h-0 border-t border-zinc-300 shrink-0" aria-hidden />
 
@@ -202,28 +366,55 @@ export default function TextoComunidadPage() {
 
           {/* Autor + acciones */}
           <div className="flex items-center gap-3 mt-4">
-            <div className="relative shrink-0 w-9 h-9 flex items-center justify-center">
-              <IconAvatarCircle className="absolute inset-0 w-full h-full" />
-              <span className="relative text-black">
-                <IconPhoto className="w-4 h-4" />
-              </span>
+            <div className="relative shrink-0 w-9 h-9 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center">
+              {authorAvatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={authorAvatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <>
+                  <IconAvatarCircle className="absolute inset-0 w-full h-full" />
+                  <span className="relative text-black">
+                    <IconPhoto className="w-4 h-4" />
+                  </span>
+                </>
+              )}
             </div>
             <p className="text-black text-base font-normal leading-5 flex-1 min-w-0">
-              Por <span className="font-bold">{authorName}</span>
+              Por{" "}
+              <Link
+                href={`/inicio/comunidad/usuario/${text.user_id}`}
+                className="font-bold text-black hover:underline focus:outline-none focus:ring-2 focus:ring-orange-500/50 rounded"
+              >
+                {authorName}
+              </Link>
             </p>
             <button
               type="button"
-              className="p-2 -m-2 text-black shrink-0"
+              onClick={handleShare}
+              className={`p-2 -m-2 shrink-0 ${authorAllowsShare ? "text-black" : "text-neutral-300 cursor-not-allowed"}`}
               aria-label="Compartir"
+              title={authorAllowsShare ? "Compartir" : "El autor no permite compartir este texto fuera de la comunidad"}
+              disabled={!authorAllowsShare}
             >
               <IconShare className="size-5" />
             </button>
             <button
               type="button"
-              className="p-2 -m-2 text-black shrink-0"
-              aria-label="Guardar"
+              onClick={handleToggleSave}
+              disabled={!currentUser || loadingSaved}
+              className={`p-2 -m-2 shrink-0 ${isSaved ? "text-red" : "text-black"} ${!currentUser ? "opacity-50 cursor-not-allowed" : ""}`}
+              aria-label={isSaved ? "Quitar de guardados" : "Guardar texto"}
+              title={isSaved ? "Quitar de guardados" : "Guardar texto"}
             >
-              <IconBookmark className="size-5" />
+              {isSaved ? (
+                <IconBookmarkFilled className="size-5" />
+              ) : (
+                <IconBookmark className="size-5" />
+              )}
             </button>
           </div>
 
@@ -233,16 +424,92 @@ export default function TextoComunidadPage() {
           </div>
 
           {/* Comentarios */}
-          <h2 className="text-black text-lg font-bold leading-5 mt-10 mb-4">
+          <h2 className="text-black text-lg font-bold leading-5 mt-10 mb-4 flex items-center gap-2">
+            <IconComment className="size-5 text-neutral-500" aria-hidden />
             Comentarios
           </h2>
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5">
+
+          {!authorAllowsComments && (
+            <div className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5 mb-2">
               <p className="text-neutral-500 text-sm">
-                Aún no hay comentarios. Cuando esté disponible la funcionalidad, podrás ver y escribir comentarios aquí.
+                El autor no permite comentarios en este texto.
               </p>
             </div>
-          </div>
+          )}
+
+          {authorAllowsComments && !currentUser && (
+            <div className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5">
+              <p className="text-neutral-500 text-sm">
+                Inicia sesión para dejar un comentario.
+              </p>
+            </div>
+          )}
+
+          {authorAllowsComments && currentUser && (
+            <form onSubmit={handleSubmitComment} className="mb-6">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Escribe tu comentario..."
+                rows={3}
+                maxLength={2000}
+                className="w-full rounded-2xl border border-zinc-300 bg-white p-4 text-black text-base placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 resize-none"
+                disabled={submittingComment}
+                aria-label="Comentario"
+              />
+              {commentError && (
+                <p className="mt-2 text-red text-sm">{commentError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={submittingComment || !newComment.trim()}
+                className="mt-2 px-4 py-2 bg-orange-700 text-white text-sm font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingComment ? "Enviando..." : "Enviar comentario"}
+              </button>
+            </form>
+          )}
+
+          {(authorPublicComments || (currentUser && text.user_id === currentUser.id)) && (
+            <div className="space-y-4">
+              {loadingComments ? (
+                <p className="text-neutral-400 text-sm">Cargando comentarios...</p>
+              ) : comments.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5">
+                  <p className="text-neutral-500 text-sm">
+                    Aún no hay comentarios. ¡Sé el primero en comentar!
+                  </p>
+                </div>
+              ) : (
+                comments.map((c) => (
+                  <div
+                    key={c.id}
+                    className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-black text-sm font-bold">
+                        {c.author_name || "Un miembro"}
+                      </span>
+                      <span className="text-neutral-400 text-xs shrink-0">
+                        {formatFechaCorta(c.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-black text-base leading-5 whitespace-pre-wrap">
+                      {c.body}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {authorAllowsComments && authorPublicComments === false && currentUser?.id !== text.user_id && (
+            <div className="bg-white rounded-2xl shadow-[0px_2px_4px_0px_rgba(0,0,0,0.07)] p-5 mt-4">
+              <p className="text-neutral-500 text-sm">
+                Los comentarios de este texto no son públicos.
+              </p>
+            </div>
+          )}
         </div>
       </main>
     </div>

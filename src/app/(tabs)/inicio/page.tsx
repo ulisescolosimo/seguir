@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,8 @@ import {
   elegirSiguientePalabra,
 } from "@/lib/diccionario";
 import type { PalabraDiccionario, DefinicionDiccionario } from "@/types/diccionario";
+import { CommunityTextCard } from "@/components/community/CommunityTextCard";
+import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 import {
   IconAvatarCircle,
   IconPhoto,
@@ -27,6 +29,8 @@ type TextRecord = {
   updated_at: string;
   consigna_id?: string | null;
 };
+
+type CommunityTextPreview = CommunityTextCardData;
 
 function formatFecha(iso: string): string {
   try {
@@ -124,11 +128,13 @@ function TextCardSmall({
   title,
   status,
   isOwn,
+  authorName,
 }: {
   id: string;
   title: string;
   status: "draft" | "published";
   isOwn: boolean;
+  authorName?: string;
 }) {
   const displayTitle = title.trim() || "Sin título";
   return (
@@ -161,7 +167,7 @@ function TextCardSmall({
               </span>
             </div>
             <p className="text-black text-xs leading-4">
-              Por <span className="font-bold">Autor</span>
+              Por <span className="font-bold">{authorName ?? "Autor"}</span>
             </p>
           </div>
         </>
@@ -265,6 +271,12 @@ export default function InicioPage() {
   const [texts, setTexts] = useState<TextRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Comunidad: textos publicados de usuarios con want_to_be_read (RLS los filtra)
+  const [communityTexts, setCommunityTexts] = useState<CommunityTextPreview[]>([]);
+  const [communityAuthorNames, setCommunityAuthorNames] = useState<Record<string, string>>({});
+  const [communityAuthorAvatars, setCommunityAuthorAvatars] = useState<Record<string, string>>({});
+  const [loadingCommunity, setLoadingCommunity] = useState(true);
+
   // Diccionario: palabras, definiciones del usuario, palabra actual
   const [palabras, setPalabras] = useState<PalabraDiccionario[]>([]);
   const [definiciones, setDefiniciones] = useState<Record<string, DefinicionDiccionario>>({});
@@ -284,6 +296,7 @@ export default function InicioPage() {
         setTexts([]);
         setLoading(false);
         setLoadingDiccionario(false);
+        setLoadingCommunity(false);
         setUserId(null);
         return;
       }
@@ -304,6 +317,38 @@ export default function InicioPage() {
       setPalabraActual(siguiente);
       setLoading(false);
       setLoadingDiccionario(false);
+
+      // Textos de comunidad: publicados por otros (RLS solo devuelve autores con want_to_be_read)
+      const { data: communityData } = await supabase
+        .from("texts")
+        .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+        .eq("status", "published")
+        .order("updated_at", { ascending: false })
+        .limit(30);
+      const rows = (communityData ?? []) as CommunityTextPreview[];
+      const others = rows.filter((t) => t.user_id !== user.id);
+      setCommunityTexts(others);
+
+      const authorIds = [...new Set(others.map((t) => t.user_id))];
+      if (authorIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, first_name, last_name, avatar_url")
+          .in("id", authorIds);
+        const map: Record<string, string> = {};
+        const avatarMap: Record<string, string> = {};
+        for (const p of profilesData ?? []) {
+          const name = [p.first_name?.trim(), p.last_name?.trim()].filter(Boolean).join(" ");
+          map[p.id] = name || "un miembro";
+          if (p.avatar_url?.trim()) avatarMap[p.id] = p.avatar_url.trim();
+        }
+        setCommunityAuthorNames(map);
+        setCommunityAuthorAvatars(avatarMap);
+      } else {
+        setCommunityAuthorNames({});
+        setCommunityAuthorAvatars({});
+      }
+      setLoadingCommunity(false);
     })();
   }, []);
 
@@ -351,6 +396,19 @@ export default function InicioPage() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const [slideIndex, setSlideIndex] = useState(0);
 
+  const communityCarouselRef = useRef<HTMLDivElement>(null);
+  const [communitySlideIndex, setCommunitySlideIndex] = useState(0);
+
+  const TEXTS_PER_SLIDE = 3;
+  const communityChunks = useMemo(() => {
+    const list = communityTexts;
+    const result: CommunityTextPreview[][] = [];
+    for (let i = 0; i < list.length; i += TEXTS_PER_SLIDE) {
+      result.push(list.slice(i, i + TEXTS_PER_SLIDE));
+    }
+    return result;
+  }, [communityTexts]);
+
   const goToSlide = (index: number) => {
     const el = carouselRef.current;
     if (!el || index < 0 || index >= texts.length) return;
@@ -366,6 +424,23 @@ export default function InicioPage() {
     const step = el.offsetWidth + 16; // ancho card + gap-4
     const index = Math.round(scrollLeft / step);
     setSlideIndex(Math.min(Math.max(0, index), texts.length - 1));
+  };
+
+  const goToCommunitySlide = (index: number) => {
+    const el = communityCarouselRef.current;
+    if (!el || index < 0 || index >= communityChunks.length) return;
+    const slide = el.querySelector(`[data-community-slide="${index}"]`);
+    slide?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    setCommunitySlideIndex(index);
+  };
+
+  const handleCommunityCarouselScroll = () => {
+    const el = communityCarouselRef.current;
+    if (!el || communityChunks.length === 0) return;
+    const scrollLeft = el.scrollLeft;
+    const step = el.offsetWidth + 16;
+    const index = Math.round(scrollLeft / step);
+    setCommunitySlideIndex(Math.min(Math.max(0, index), communityChunks.length - 1));
   };
 
   return (
@@ -415,7 +490,13 @@ export default function InicioPage() {
             </div>
           )}
         </div>
-      ) : null}
+      ) : (
+        <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center justify-center">
+          <p className="text-neutral-400 text-sm text-center">
+            Aún no tienes textos escritos. Cuando crees uno, aparecerá aquí.
+          </p>
+        </div>
+      )}
 
       <Link
         href="/escribir/editar"
@@ -426,20 +507,63 @@ export default function InicioPage() {
       </Link>
 
       <SectionHeader title="Comunidad" href="/inicio/comunidad" />
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <TextCardSmall
-          id=""
-          title="El susurro del viento"
-          status="published"
-          isOwn={false}
-        />
-        <TextCardSmall
-          id=""
-          title="Otro texto"
-          status="published"
-          isOwn={false}
-        />
-      </div>
+      {loadingCommunity ? (
+        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center">
+          <p className="text-neutral-400 text-sm">Cargando...</p>
+        </div>
+      ) : communityTexts.length === 0 ? (
+        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center justify-center">
+          <p className="text-neutral-400 text-sm text-center">
+            Aún no hay textos de la comunidad.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-6">
+          <div
+            ref={communityCarouselRef}
+            onScroll={handleCommunityCarouselScroll}
+            className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {communityChunks.map((chunk: CommunityTextPreview[], slideIdx: number) => (
+              <div
+                key={slideIdx}
+                data-community-slide={slideIdx}
+                className="flex-[0_0_100%] min-w-0 w-full snap-start snap-always flex flex-col gap-3"
+              >
+                {chunk.map((t: CommunityTextPreview) => (
+                  <Link
+                    key={t.id}
+                    href={`/inicio/comunidad/texto/${t.id}`}
+                    className="block"
+                    aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                  >
+                    <CommunityTextCard
+                      text={t}
+                      authorName={communityAuthorNames[t.user_id] ?? "un miembro"}
+                      authorAvatarUrl={communityAuthorAvatars[t.user_id] ?? null}
+                    />
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+          {communityChunks.length > 1 && (
+            <div className="flex justify-center gap-1.5 mt-3">
+              {communityChunks.map((_: CommunityTextPreview[], i: number) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => goToCommunitySlide(i)}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    i === communitySlideIndex ? "bg-red w-4" : "bg-neutral-300"
+                  }`}
+                  aria-label={`Ir a slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {userId && (
         <>

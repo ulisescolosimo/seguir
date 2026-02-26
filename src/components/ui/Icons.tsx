@@ -272,6 +272,15 @@ export function IconBookmark({ className }: { className?: string }) {
   );
 }
 
+/** Icono bookmark relleno (texto guardado). */
+export function IconBookmarkFilled({ className }: { className?: string }) {
+  return (
+    <svg width="18" height="25" viewBox="0 0 18 25" fill="currentColor" className={className} aria-hidden>
+      <path d="M9.57718 23.3585C9.3191 23.6208 8.96901 23.7686 8.60413 23.7686C8.23923 23.7686 7.88914 23.6208 7.63108 23.3585L0.991596 16.6076V1.00871H16.2167V16.6076L9.57718 23.3585Z" />
+    </svg>
+  );
+}
+
 /** Icono comentario (burbuja) para comentarios en texto. */
 export function IconComment({ className }: { className?: string }) {
   return (

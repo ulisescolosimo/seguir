@@ -1,7 +1,10 @@
 /**
  * Traduce mensajes de error de Supabase Auth al castellano argentino.
  * Incluye mensaje genérico para errores no mapeados.
+ * @param context - Opcional: 'forgot-password' | 'password-reset' para mensajes específicos del flujo.
  */
+export type AuthErrorContext = "login" | "forgot-password" | "password-reset";
+
 const ERROR_MAP: Record<string, string> = {
   // Registro
   "User already registered": "Ese usuario ya está registrado.",
@@ -18,6 +21,17 @@ const ERROR_MAP: Record<string, string> = {
   "Email not confirmed": "Tenés que confirmar tu email antes de iniciar sesión.",
   "User not found": "No encontramos ese usuario.",
 
+  // Forgot password / reset
+  "For security purposes, you can only request this once every 60 seconds":
+    "Esperá un minuto antes de pedir otro enlace.",
+  "Email not found": "No hay ninguna cuenta con ese email.",
+  "Password link has expired or is invalid":
+    "El enlace venció o no es válido. Solicitá uno nuevo.",
+  "New password should be different from the old password.":
+    "La nueva contraseña tiene que ser distinta a la anterior.",
+  "Token has expired or is invalid": "El enlace venció o no es válido. Solicitá uno nuevo.",
+  "Code exchange failed": "El enlace ya fue usado o venció. Solicitá uno nuevo.",
+
   // Rate limit / servidor
   "Too many requests": "Demasiados intentos. Esperá un poco y probá de nuevo.",
   "Forbidden": "No tenés permiso para hacer esto.",
@@ -31,15 +45,25 @@ const LOWER_MAP = Object.fromEntries(
 /**
  * Devuelve el mensaje de error en castellano argentino.
  * Si no hay traducción, devuelve un mensaje genérico.
+ * @param context - 'forgot-password' o 'password-reset' para mensaje genérico contextual.
  */
-export function getAuthErrorMessage(error: { message?: string; error_description?: string } | null): string {
+export function getAuthErrorMessage(
+  error: { message?: string; error_description?: string } | null,
+  context?: AuthErrorContext
+): string {
   const raw =
     error && (typeof (error as { message?: string }).message === "string"
       ? (error as { message: string }).message
       : typeof (error as { error_description?: string }).error_description === "string"
         ? (error as { error_description: string }).error_description
         : "");
-  if (!raw) return "Ocurrió un error. Probá de nuevo.";
+  if (!raw) {
+    if (context === "forgot-password")
+      return "No pudimos enviar el email. Probá de nuevo.";
+    if (context === "password-reset")
+      return "No pudimos restablecer la contraseña. Probá de nuevo.";
+    return "Ocurrió un error. Probá de nuevo.";
+  }
   const msg = raw.trim().replace(/\s+/g, " ");
   const exact = ERROR_MAP[msg];
   if (exact) return exact;
@@ -56,5 +80,12 @@ export function getAuthErrorMessage(error: { message?: string; error_description
     return "La contraseña tiene que tener al menos 6 caracteres.";
   if (msg.toLowerCase().includes("too many"))
     return "Demasiados intentos. Esperá un poco y probá de nuevo.";
+  if (msg.toLowerCase().includes("expired") || msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("already used")) {
+    if (context === "password-reset" || context === "forgot-password")
+      return "El enlace venció o ya fue usado. Solicitá uno nuevo.";
+    return "El enlace venció o no es válido. Probá de nuevo.";
+  }
+  if (context === "forgot-password") return "No pudimos enviar el email. Probá de nuevo.";
+  if (context === "password-reset") return "No pudimos restablecer la contraseña. Probá de nuevo.";
   return "Ocurrió un error. Probá de nuevo.";
 }

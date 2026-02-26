@@ -8,13 +8,12 @@ import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
 import type { PalabraConConteo } from "@/types/diccionario";
 import type { Formato } from "@/types/formatos";
 import {
-  IconAvatarCircle,
-  IconPhoto,
   IconSearch,
   IconChevronLeft,
   IconFilter,
 } from "@/components/ui/Icons";
 import { Header } from "@/components/layout/Header";
+import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 
 type CommunityText = {
   id: string;
@@ -28,83 +27,9 @@ type CommunityText = {
   user_id: string;
 };
 
-function formatFecha(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("es-AR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
-
-function excerpt(body: string, max = 60): string {
-  const t = body.trim();
-  if (!t) return "";
-  return t.length <= max ? t : t.slice(0, max).trim() + "…";
-}
-
 function authorDisplayName(firstName: string | null, lastName: string | null): string {
   const n = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
   return n || "un miembro";
-}
-
-/** Card de texto según template: imagen izquierda, contenido a la derecha (tag, título, descripción, fecha, autor). */
-function CommunityTextCard({
-  text,
-  authorName,
-}: {
-  text: CommunityText;
-  authorName: string;
-}) {
-  const displayTitle = text.title?.trim() || "Sin título";
-  const formatoLabel = (
-    text.formatos_texto?.[0]?.nombre ||
-    text.tematica?.trim() ||
-    "TEXTO"
-  ).toUpperCase();
-  const imageUrl = text.image_url || "https://placehold.co/112x112";
-
-  return (
-    <div className="w-full h-28 bg-white rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] overflow-hidden flex">
-      <div className="w-28 h-28 shrink-0 bg-neutral-200 overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt=""
-          className="w-full h-full object-cover"
-        />
-      </div>
-      <div className="flex-1 min-w-0 p-2.5 flex flex-col relative">
-        <span className="text-orange-700 text-xs font-medium leading-tight">
-          {formatoLabel}
-        </span>
-        <span className="absolute top-2.5 right-2.5 text-neutral-400 text-[10px] font-normal leading-tight">
-          {formatFecha(text.updated_at)}
-        </span>
-        <h3 className="text-black text-sm font-bold leading-tight mt-0.5 pr-14">
-          {displayTitle}
-        </h3>
-        <p className="text-black text-xs font-normal leading-tight mt-0.5 line-clamp-2">
-          {excerpt(text.body)}
-        </p>
-        <div className="mt-auto flex items-center gap-1.5">
-          <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
-            <IconAvatarCircle className="absolute inset-0 w-full h-full" />
-            <span className="relative text-black">
-              <IconPhoto className="w-3 h-3" />
-            </span>
-          </div>
-          <p className="text-black text-xs font-normal leading-tight">
-            Por <span className="font-semibold">{authorName}</span>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 /** Encabezado de sección: título, icono de filtro y opcionalmente badge de filtro activo con cruz para quitar. */
@@ -166,6 +91,7 @@ function SectionHeader({
 export default function ComunidadPage() {
   const [texts, setTexts] = useState<CommunityText[]>([]);
   const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
+  const [authorAvatars, setAuthorAvatars] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const [palabrasConConteo, setPalabrasConConteo] = useState<PalabraConConteo[]>([]);
@@ -177,6 +103,15 @@ export default function ComunidadPage() {
   const [showFiltroSeguidos, setShowFiltroSeguidos] = useState(false);
   const [formatoIdFiltroComunidad, setFormatoIdFiltroComunidad] = useState<string | null>(null);
   const [formatoIdFiltroSeguidos, setFormatoIdFiltroSeguidos] = useState<string | null>(null);
+
+  const [showBusquedaComunidad, setShowBusquedaComunidad] = useState(false);
+  const [busquedaComunidad, setBusquedaComunidad] = useState("");
+  const inputBusquedaComunidadRef = useRef<HTMLInputElement>(null);
+
+  const [textsSeguidos, setTextsSeguidos] = useState<CommunityText[]>([]);
+  const [authorNamesSeguidos, setAuthorNamesSeguidos] = useState<Record<string, string>>({});
+  const [authorAvatarsSeguidos, setAuthorAvatarsSeguidos] = useState<Record<string, string>>({});
+  const [loadingSeguidos, setLoadingSeguidos] = useState(true);
 
   const palabrasFiltradas = useMemo(() => {
     const q = busquedaBiblioteca.trim().toLowerCase();
@@ -197,6 +132,43 @@ export default function ComunidadPage() {
     });
   }, [texts, formatoIdFiltroComunidad, formatos]);
 
+  const textosSeguidosFiltrados = useMemo(() => {
+    if (!formatoIdFiltroSeguidos) return textsSeguidos;
+    const selectedFormato = formatos.find((f) => f.id === formatoIdFiltroSeguidos);
+    const nombreFormatoLower = selectedFormato?.nombre?.trim().toLowerCase();
+    return textsSeguidos.filter((t) => {
+      if (t.formato_id === formatoIdFiltroSeguidos) return true;
+      if (nombreFormatoLower && t.tematica?.trim().toLowerCase() === nombreFormatoLower) return true;
+      return false;
+    });
+  }, [textsSeguidos, formatoIdFiltroSeguidos, formatos]);
+
+  const textosComunidadBuscados = useMemo(() => {
+    const q = busquedaComunidad.trim().toLowerCase();
+    if (!q) return textosComunidadFiltrados;
+    return textosComunidadFiltrados.filter((t) => {
+      const title = (t.title ?? "").toLowerCase();
+      const body = (t.body ?? "").toLowerCase();
+      const tematica = (t.tematica ?? "").toLowerCase();
+      const formatosTexto = Array.isArray(t.formatos_texto) ? t.formatos_texto : [];
+      const formatoNames = formatosTexto.map((f) => (f.nombre ?? "").toLowerCase()).join(" ");
+      return title.includes(q) || body.includes(q) || tematica.includes(q) || formatoNames.includes(q);
+    });
+  }, [textosComunidadFiltrados, busquedaComunidad]);
+
+  const textosSeguidosBuscados = useMemo(() => {
+    const q = busquedaComunidad.trim().toLowerCase();
+    if (!q) return textosSeguidosFiltrados;
+    return textosSeguidosFiltrados.filter((t) => {
+      const title = (t.title ?? "").toLowerCase();
+      const body = (t.body ?? "").toLowerCase();
+      const tematica = (t.tematica ?? "").toLowerCase();
+      const formatosTexto = Array.isArray(t.formatos_texto) ? t.formatos_texto : [];
+      const formatoNames = formatosTexto.map((f) => (f.nombre ?? "").toLowerCase()).join(" ");
+      return title.includes(q) || body.includes(q) || tematica.includes(q) || formatoNames.includes(q);
+    });
+  }, [textosSeguidosFiltrados, busquedaComunidad]);
+
   const bibliotecaRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -207,6 +179,13 @@ export default function ComunidadPage() {
   }, []);
 
   useEffect(() => {
+    if (showBusquedaComunidad) {
+      const t = setTimeout(() => inputBusquedaComunidadRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [showBusquedaComunidad]);
+
+  useEffect(() => {
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -214,6 +193,10 @@ export default function ComunidadPage() {
         setTexts([]);
         setAuthorNames({});
         setLoading(false);
+        setTextsSeguidos([]);
+        setAuthorNamesSeguidos({});
+        setAuthorAvatarsSeguidos({});
+        setLoadingSeguidos(false);
         return;
       }
       const [textsRes, palabrasData, formatosData] = await Promise.all([
@@ -234,16 +217,61 @@ export default function ComunidadPage() {
       if (userIds.length > 0) {
         const { data: profilesData } = await supabase
           .from("profiles")
-          .select("id, first_name, last_name")
+          .select("id, first_name, last_name, avatar_url")
           .in("id", userIds);
         const map: Record<string, string> = {};
+        const avatarMap: Record<string, string> = {};
         for (const p of profilesData ?? []) {
           map[p.id] = authorDisplayName(p.first_name ?? null, p.last_name ?? null);
+          if (p.avatar_url?.trim()) avatarMap[p.id] = p.avatar_url.trim();
         }
         setAuthorNames(map);
+        setAuthorAvatars(avatarMap);
       } else {
         setAuthorNames({});
+        setAuthorAvatars({});
       }
+
+      // Textos de personas que el usuario sigue
+      const { data: followsRows } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", user.id);
+      const followingIds = (followsRows ?? []).map((r) => r.following_id);
+      if (followingIds.length > 0) {
+        const { data: seguidosData } = await supabase
+          .from("texts")
+          .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+          .in("user_id", followingIds)
+          .eq("status", "published")
+          .order("updated_at", { ascending: false });
+        const seguidos = (seguidosData ?? []) as CommunityText[];
+        setTextsSeguidos(seguidos);
+        const segIds = [...new Set(seguidos.map((t) => t.user_id))];
+        if (segIds.length > 0) {
+          const { data: profSeguidos } = await supabase
+            .from("profiles")
+            .select("id, first_name, last_name, avatar_url")
+            .in("id", segIds);
+          const nameMap: Record<string, string> = {};
+          const avatarMap: Record<string, string> = {};
+          for (const p of profSeguidos ?? []) {
+            nameMap[p.id] = authorDisplayName(p.first_name ?? null, p.last_name ?? null);
+            if (p.avatar_url?.trim()) avatarMap[p.id] = p.avatar_url.trim();
+          }
+          setAuthorNamesSeguidos(nameMap);
+          setAuthorAvatarsSeguidos(avatarMap);
+        } else {
+          setAuthorNamesSeguidos({});
+          setAuthorAvatarsSeguidos({});
+        }
+      } else {
+        setTextsSeguidos([]);
+        setAuthorNamesSeguidos({});
+        setAuthorAvatarsSeguidos({});
+      }
+      setLoadingSeguidos(false);
+
       setLoading(false);
       setLoadingBiblioteca(false);
     })();
@@ -342,12 +370,39 @@ export default function ComunidadPage() {
           </Link>
         }
         rightSlot={
-          <button type="button" className="p-2 -m-2 text-red" aria-label="Buscar">
+          <button
+            type="button"
+            onClick={() => setShowBusquedaComunidad((v) => !v)}
+            className={`p-2 -m-2 ${showBusquedaComunidad ? "text-red" : "text-black"}`}
+            aria-label={showBusquedaComunidad ? "Ocultar búsqueda" : "Buscar en comunidad"}
+            aria-pressed={showBusquedaComunidad}
+          >
             <IconSearch className="size-8" />
           </button>
         }
       />
       <div className="w-full h-0 border-t border-zinc-300 shrink-0" aria-hidden />
+
+      {showBusquedaComunidad && (
+        <div className="px-4 pt-2 pb-1 bg-neutral-100 shrink-0">
+          <label className="sr-only" htmlFor="busqueda-comunidad">
+            Buscar en la sección comunidad
+          </label>
+          <div className="w-full h-9 bg-white/80 rounded-full flex items-center gap-2 pl-3 pr-2.5 focus-within:ring-2 focus-within:ring-red/20 focus-within:ring-offset-1 focus-within:bg-white">
+            <IconSearch className="size-3.5 shrink-0 text-neutral-400" aria-hidden />
+            <input
+              ref={inputBusquedaComunidadRef}
+              id="busqueda-comunidad"
+              type="search"
+              value={busquedaComunidad}
+              onChange={(e) => setBusquedaComunidad(e.target.value)}
+              placeholder="Buscar en la comunidad..."
+              className="flex-1 min-w-0 h-full bg-transparent text-black text-xs placeholder:text-neutral-400 focus:outline-none"
+              aria-label="Buscar en todos los textos de la comunidad"
+            />
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto">
         <div className="px-4 py-4 pb-6 mx-auto">
@@ -371,10 +426,12 @@ export default function ComunidadPage() {
             <div className="bg-white rounded-xl p-4 flex items-center justify-center">
               <p className="text-neutral-400 text-xs">Cargando...</p>
             </div>
-          ) : textosComunidadFiltrados.length === 0 ? (
+          ) : textosComunidadBuscados.length === 0 ? (
             <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
               <p className="text-neutral-500 text-xs">
-                Aún no hay textos públicos en la comunidad.
+                {busquedaComunidad.trim()
+                  ? `Ningún texto coincide con "${busquedaComunidad.trim()}".`
+                  : "Aún no hay textos públicos en la comunidad."}
               </p>
               <Link
                 href="/inicio"
@@ -385,7 +442,7 @@ export default function ComunidadPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {textosComunidadFiltrados.map((t) => (
+              {textosComunidadBuscados.map((t) => (
                 <Link
                   key={t.id}
                   href={`/inicio/comunidad/texto/${t.id}`}
@@ -395,34 +452,60 @@ export default function ComunidadPage() {
                   <CommunityTextCard
                     text={t}
                     authorName={authorNames[t.user_id] ?? "un miembro"}
+                    authorAvatarUrl={authorAvatars[t.user_id] ?? null}
                   />
                 </Link>
               ))}
             </div>
           )}
 
-          {/* Sección Textos de escritores que seguís (por ahora vacía; luego: textos de perfiles seguidos) */}
+          {/* Sección Textos de escritores que seguís */}
           <div className="mt-6">
             <SectionHeader
-            title="Textos de escritores que seguís"
-            onFilter={() => setShowFiltroSeguidos(true)}
-            ariaLabelFilter="Filtrar textos de escritores que seguís"
-            activeFilterName={formatoIdFiltroSeguidos ? formatos.find((f) => f.id === formatoIdFiltroSeguidos)?.nombre ?? null : null}
-            onClearFilter={() => setFormatoIdFiltroSeguidos(null)}
-          />
+              title="Textos de escritores que seguís"
+              onFilter={() => setShowFiltroSeguidos(true)}
+              ariaLabelFilter="Filtrar textos de escritores que seguís"
+              activeFilterName={formatoIdFiltroSeguidos ? formatos.find((f) => f.id === formatoIdFiltroSeguidos)?.nombre ?? null : null}
+              onClearFilter={() => setFormatoIdFiltroSeguidos(null)}
+            />
 
-          <FiltroFormatoPanel
-            open={showFiltroSeguidos}
-            onClose={() => setShowFiltroSeguidos(false)}
-            formatoId={formatoIdFiltroSeguidos}
-            onSelectFormato={setFormatoIdFiltroSeguidos}
-          />
+            <FiltroFormatoPanel
+              open={showFiltroSeguidos}
+              onClose={() => setShowFiltroSeguidos(false)}
+              formatoId={formatoIdFiltroSeguidos}
+              onSelectFormato={setFormatoIdFiltroSeguidos}
+            />
 
-          <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
-            <p className="text-neutral-500 text-xs">
-              Cuando sigas a escritores con perfil público, sus textos aparecerán aquí.
-            </p>
-          </div>
+            {loadingSeguidos ? (
+              <div className="bg-white rounded-xl p-4 flex items-center justify-center">
+                <p className="text-neutral-400 text-xs">Cargando...</p>
+              </div>
+            ) : textosSeguidosBuscados.length === 0 ? (
+              <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
+                <p className="text-neutral-500 text-xs">
+                  {busquedaComunidad.trim()
+                    ? `Ningún texto coincide con "${busquedaComunidad.trim()}".`
+                    : "Cuando sigas a escritores con perfil público, sus textos aparecerán aquí."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {textosSeguidosBuscados.map((t) => (
+                  <Link
+                    key={t.id}
+                    href={`/inicio/comunidad/texto/${t.id}`}
+                    className="block"
+                    aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                  >
+                    <CommunityTextCard
+                      text={t}
+                      authorName={authorNamesSeguidos[t.user_id] ?? "un miembro"}
+                      authorAvatarUrl={authorAvatarsSeguidos[t.user_id] ?? null}
+                    />
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Biblioteca de significados */}
