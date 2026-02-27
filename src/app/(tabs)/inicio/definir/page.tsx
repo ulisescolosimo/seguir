@@ -10,7 +10,7 @@ import {
   saveDefinicion,
   getPalabraDelDia,
 } from "@/lib/diccionario";
-import type { PalabraDiccionario } from "@/types/diccionario";
+import type { PalabraDiccionario, DefinicionDiccionario } from "@/types/diccionario";
 import { Header } from "@/components/layout/Header";
 import { IconChevronLeft } from "@/components/ui/Icons";
 
@@ -34,7 +34,7 @@ export default function DefinirPage() {
         }
         const [palabras, definiciones] = await Promise.all([
           fetchPalabrasDiccionario().catch(() => []),
-          fetchMisDefiniciones(user.id).catch(() => ({})),
+          fetchMisDefiniciones(user.id).catch((): Record<string, DefinicionDiccionario> => ({})),
         ]);
         const palabra = getPalabraDelDia(palabras);
         setPalabraDelDia(palabra);
