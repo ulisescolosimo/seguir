@@ -636,7 +636,7 @@ export default function PerfilPage() {
             </h2>
             {savedTexts.length > 0 && (
               <Link
-                href="/inicio/comunidad"
+                href="/perfil/guardados"
                 className="text-orange-700 text-sm font-bold font-['Inter'] leading-4"
               >
                 Ver todos
