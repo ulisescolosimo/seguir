@@ -128,6 +128,25 @@ export default function PublicarPage() {
       ? formatos.find((f) => f.id === formatoId)?.nombre ?? null
       : null;
 
+    // Con textId: publicar requiere título, formato e imagen
+    if (textId) {
+      if (!titulo.trim()) {
+        setError("Completá el título.");
+        setPublishing(false);
+        return;
+      }
+      if (!formatoId) {
+        setError("Elegí un formato.");
+        setPublishing(false);
+        return;
+      }
+      if (!imagenFile) {
+        setError("Subí una imagen.");
+        setPublishing(false);
+        return;
+      }
+    }
+
     // Si no hay textId, crear un texto nuevo en draft y redirigir
     if (!textId) {
       const { data: newText, error: insertError } = await supabase
@@ -224,6 +243,12 @@ export default function PublicarPage() {
 
   const tituloPrevia = titulo.trim() || "Sin título";
 
+  const todosCompletos = Boolean(
+    titulo.trim() &&
+    formatoId &&
+    (textId ? imagenFile : true)
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-neutral-100">
       {showPrevia && (
@@ -297,7 +322,12 @@ export default function PublicarPage() {
           </div>
         ) : (
           <>
-            <h2 className="text-lg font-bold text-black leading-5 mb-2">Título</h2>
+            <h2 className="text-lg font-bold text-black leading-5 mb-2">
+              Título
+            </h2>
+            <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-2">
+              Se toma del texto que escribiste
+            </p>
             <input
               type="text"
               value={titulo}
@@ -310,7 +340,7 @@ export default function PublicarPage() {
               Formato
             </h2>
             <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-2">
-              Seleccioná entre las opciones
+              Seleccioná entre las opciones (obligatorio)
             </p>
             <div className="relative">
               <select
@@ -357,7 +387,7 @@ export default function PublicarPage() {
               Imagen principal
             </h2>
             <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-3">
-              Archivo .JPEG, .PNG de {MAX_IMAGE_SIZE_MB}MB máximo
+              Archivo .JPEG, .PNG de {MAX_IMAGE_SIZE_MB}MB máximo (obligatorio)
             </p>
             <input
               ref={fileInputRef}
@@ -398,7 +428,7 @@ export default function PublicarPage() {
               <button
                 type="button"
                 onClick={handlePublicar}
-                disabled={publishing}
+                disabled={publishing || !todosCompletos}
                 className="flex-1 h-14 min-w-0 bg-red border-2 border-red text-white text-base font-bold leading-5 tracking-wider rounded-[47px] hover:bg-red/90 transition-colors disabled:opacity-60 disabled:pointer-events-none"
               >
                 {publishing ? "Publicando…" : "PUBLICAR"}

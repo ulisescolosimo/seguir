@@ -69,6 +69,22 @@ export function elegirSiguientePalabra(
   return candidatas[Math.floor(Math.random() * candidatas.length)] ?? null;
 }
 
+/** Índice del día actual (mismo valor para todo el día en cualquier timezone de referencia). */
+function getDiaOrdinal(): number {
+  const d = new Date();
+  return Math.floor(d.getTime() / 86400000);
+}
+
+/**
+ * Devuelve la palabra del día: una por día, determinística (misma palabra para todos ese día).
+ * Si el usuario ya la definió, igual es la "palabra del día"; la UI decidirá si mostrar o no el CTA.
+ */
+export function getPalabraDelDia(palabras: PalabraDiccionario[]): PalabraDiccionario | null {
+  if (palabras.length === 0) return null;
+  const index = getDiaOrdinal() % palabras.length;
+  return palabras[index] ?? null;
+}
+
 /** Palabras con conteo de significados (solo palabras con al menos una definición no vacía). */
 export async function fetchPalabrasConConteo(): Promise<PalabraConConteo[]> {
   const { createClient } = await import("@/lib/supabase/client");

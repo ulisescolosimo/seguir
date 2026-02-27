@@ -1,24 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchPalabrasDiccionario,
   fetchMisDefiniciones,
-  saveDefinicion,
-  elegirSiguientePalabra,
+  getPalabraDelDia,
 } from "@/lib/diccionario";
-import type { PalabraDiccionario, DefinicionDiccionario } from "@/types/diccionario";
+import type { PalabraDiccionario } from "@/types/diccionario";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 import {
   IconAvatarCircle,
   IconPhoto,
   IconPalabraHeart,
-  IconOtraPalabra,
   IconEscribirDesdeCero,
+  IconInfo,
 } from "@/components/ui/Icons";
 
 type TextRecord = {
@@ -55,15 +53,29 @@ function SectionHeader({
   title,
   linkLabel = "Ver todo",
   href = "#",
+  onInfoClick,
 }: {
   title: string;
   linkLabel?: string;
   href?: string;
+  onInfoClick?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <h2 className="text-lg font-bold text-black leading-5">{title}</h2>
-      <Link href={href} className="text-red text-base leading-5">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <h2 className="text-lg font-bold text-black leading-5">{title}</h2>
+        {onInfoClick && (
+          <button
+            type="button"
+            onClick={onInfoClick}
+            className="shrink-0 p-0.5 rounded-full text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 focus:outline-none focus:ring-2 focus:ring-red/30 focus:ring-offset-1"
+            aria-label="Más información"
+          >
+            <IconInfo className="w-5 h-5 shrink-0" />
+          </button>
+        )}
+      </div>
+      <Link href={href} className="text-red text-base leading-5 shrink-0">
         {linkLabel}
       </Link>
     </div>
@@ -176,117 +188,23 @@ function TextCardSmall({
   );
 }
 
-function PalabraCard({
-  palabra,
-  definicionActual,
-  onOtraPalabra,
-  onPublicar,
-  disabled,
-}: {
-  palabra: PalabraDiccionario | null;
-  definicionActual: DefinicionDiccionario | undefined;
-  onOtraPalabra: () => void;
-  onPublicar: (definicion: string) => Promise<void>;
-  disabled?: boolean;
-}) {
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setDraft(definicionActual?.definicion ?? "");
-    setError(null);
-  }, [palabra?.id, definicionActual?.definicion]);
-
-  const handlePublicar = async () => {
-    if (!palabra) return;
-    setError(null);
-    setSaving(true);
-    try {
-      await onPublicar(draft);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al guardar.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!palabra) {
-    return (
-      <div className="bg-red-50 rounded-2xl p-4 mb-4">
-        <p className="text-neutral-500 text-sm">Cargando palabras...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-red-50 rounded-2xl p-4 mb-4">
-      <div className="flex gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-red/20 flex items-center justify-center shrink-0 text-red">
-          <IconPalabraHeart className="w-6 h-6" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold text-black leading-5">{palabra.palabra}</h3>
-          <p className="text-black text-sm font-normal leading-5 mt-1">
-            Escribí qué significa para vos.
-          </p>
-        </div>
-      </div>
-      <textarea
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        placeholder="Definir palabra..."
-        rows={3}
-        disabled={disabled}
-        className="w-full mt-4 bg-white rounded-2xl px-4 py-3 text-black text-sm leading-5 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-red/30 resize-none"
-      />
-      {error && <p className="mt-2 text-red text-sm">{error}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2 mt-4">
-        <button
-          type="button"
-          onClick={onOtraPalabra}
-          disabled={disabled}
-          className="flex items-center gap-2 text-red text-xs font-medium uppercase leading-4 hover:underline disabled:opacity-50"
-        >
-          <IconOtraPalabra className="w-5 h-5" />
-          Otra palabra
-        </button>
-        <button
-          type="button"
-          onClick={handlePublicar}
-          disabled={saving || disabled}
-          className="h-10 px-6 bg-red text-white text-sm font-bold leading-4 tracking-wider rounded-[47px] hover:bg-red/90 transition-colors disabled:opacity-60 disabled:pointer-events-none"
-        >
-          {saving ? "Guardando…" : "PUBLICAR"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function InicioPage() {
-  const searchParams = useSearchParams();
-  const definirPalabraId = searchParams.get("definir");
-
   const [texts, setTexts] = useState<TextRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Comunidad: textos publicados de usuarios con want_to_be_read (RLS los filtra)
+  // Comunidad: textos publicados de otros
   const [communityTexts, setCommunityTexts] = useState<CommunityTextPreview[]>([]);
   const [communityAuthorNames, setCommunityAuthorNames] = useState<Record<string, string>>({});
   const [communityAuthorAvatars, setCommunityAuthorAvatars] = useState<Record<string, string>>({});
   const [loadingCommunity, setLoadingCommunity] = useState(true);
 
-  // Diccionario: palabras, definiciones del usuario, palabra actual
+  // Palabra del día: una por día, solo si el usuario aún no la definió
   const [palabras, setPalabras] = useState<PalabraDiccionario[]>([]);
-  const [definiciones, setDefiniciones] = useState<Record<string, DefinicionDiccionario>>({});
-  const [palabraActual, setPalabraActual] = useState<PalabraDiccionario | null>(null);
+  const [definiciones, setDefiniciones] = useState<Record<string, { definicion?: string }>>({});
+  const [palabraDelDia, setPalabraDelDia] = useState<PalabraDiccionario | null>(null);
   const [loadingDiccionario, setLoadingDiccionario] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-
-  const elegirPalabra = useCallback(() => {
-    setPalabraActual(elegirSiguientePalabra(palabras, definiciones));
-  }, [palabras, definiciones]);
+  const [showDiccionarioModal, setShowDiccionarioModal] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -313,8 +231,7 @@ export default function InicioPage() {
       setTexts((textsData.data as TextRecord[]) ?? []);
       setPalabras(palabrasData);
       setDefiniciones(defsData);
-      const siguiente = elegirSiguientePalabra(palabrasData, defsData);
-      setPalabraActual(siguiente);
+      setPalabraDelDia(getPalabraDelDia(palabrasData));
       setLoading(false);
       setLoadingDiccionario(false);
 
@@ -351,47 +268,6 @@ export default function InicioPage() {
       setLoadingCommunity(false);
     })();
   }, []);
-
-  const diccionarioRef = useRef<HTMLDivElement>(null);
-
-  // Si llegamos con ?definir=palabraId, preseleccionar esa palabra y scroll al diccionario
-  useEffect(() => {
-    if (!definirPalabraId || palabras.length === 0) return;
-    const palabra = palabras.find((p) => p.id === definirPalabraId);
-    if (palabra) {
-      setPalabraActual(palabra);
-      diccionarioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [definirPalabraId, palabras]);
-
-  // Actualizar palabra actual cuando cambien palabras o definiciones (p. ej. tras guardar)
-  useEffect(() => {
-    if (palabras.length > 0 && !palabraActual)
-      setPalabraActual(elegirSiguientePalabra(palabras, definiciones));
-  }, [palabras, definiciones]);
-
-  const handlePublicarDefinicion = async (definicion: string) => {
-    const { data: { user } } = await createClient().auth.getUser();
-    if (!user || !palabraActual) return;
-    await saveDefinicion(user.id, palabraActual.id, definicion);
-    setDefiniciones((prev) => ({
-      ...prev,
-      [palabraActual.id]: {
-        user_id: user.id,
-        palabra_id: palabraActual.id,
-        definicion: definicion.trim() || "",
-        updated_at: new Date().toISOString(),
-      },
-    }));
-    setPalabraActual(elegirSiguientePalabra(palabras, {
-      ...definiciones,
-      [palabraActual.id]: {
-        user_id: user.id,
-        palabra_id: palabraActual.id,
-        definicion: definicion.trim() || "",
-      },
-    }));
-  };
 
   const carouselRef = useRef<HTMLDivElement>(null);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -570,16 +446,89 @@ export default function InicioPage() {
           <SectionHeader
             title="Diccionario"
             linkLabel="Ver más"
-            href="/inicio/comunidad#biblioteca-significados"
+            href="/inicio/diccionario"
+            onInfoClick={() => setShowDiccionarioModal(true)}
           />
-          <div ref={diccionarioRef} id="diccionario" className="scroll-mt-4">
-          <PalabraCard
-            palabra={palabraActual}
-            definicionActual={palabraActual ? definiciones[palabraActual.id] : undefined}
-            onOtraPalabra={elegirPalabra}
-            onPublicar={handlePublicarDefinicion}
-            disabled={loadingDiccionario}
-          />
+          {showDiccionarioModal && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/50"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-diccionario-title"
+              onClick={() => setShowDiccionarioModal(false)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-5 pb-4 flex-1 overflow-y-auto">
+                  <h2 id="modal-diccionario-title" className="text-lg font-bold text-black leading-5 mb-3">
+                    Diccionario
+                  </h2>
+                  <p className="text-black text-sm leading-6">
+                    El diccionario es un espacio donde la comunidad comparte el significado personal de palabras. Cada día hay una palabra para que definas con tu propia mirada; también podés ver y buscar todas las palabras que ya tienen significados.
+                  </p>
+                </div>
+                <div className="p-5 pt-0 flex flex-col gap-3 border-t border-neutral-100">
+                  <Link
+                    href="/inicio/diccionario"
+                    onClick={() => setShowDiccionarioModal(false)}
+                    className="h-12 w-full flex items-center justify-center rounded-[47px] bg-red text-white text-sm font-bold hover:bg-red/90 active:bg-red/80 transition-colors"
+                  >
+                    Ir al diccionario de significados de la comunidad
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowDiccionarioModal(false)}
+                    className="h-10 w-full text-neutral-500 text-sm font-medium hover:text-neutral-700 active:text-neutral-800"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div id="diccionario" className="scroll-mt-4">
+            {loadingDiccionario ? (
+              <div className="bg-red-50 rounded-2xl p-4 mb-4">
+                <p className="text-neutral-500 text-sm">Cargando...</p>
+              </div>
+            ) : palabraDelDia && !definiciones[palabraDelDia.id]?.definicion?.trim() ? (
+              <Link
+                href="/inicio/definir"
+                className="block bg-red-50 rounded-2xl p-4 mb-4 hover:bg-red-50/90 active:bg-red-100/50 transition-colors"
+                aria-label={`Definir la palabra del día: ${palabraDelDia.palabra}`}
+              >
+                <div className="flex gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-red/20 flex items-center justify-center shrink-0 text-red">
+                    <IconPalabraHeart className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-bold text-black leading-5">
+                      La palabra del día: {palabraDelDia.palabra}
+                    </h3>
+                    <p className="text-black text-sm font-normal leading-5 mt-1">
+                      Escribí qué significa para vos.
+                    </p>
+                    <span className="inline-block mt-3 text-red text-sm font-bold">
+                      Definir →
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ) : palabraDelDia ? (
+              <div className="bg-white rounded-2xl p-5 mb-4 border border-neutral-200/80 shadow-[0px_2px_8px_0px_rgba(0,0,0,0.04)]">
+                <p className="text-neutral-600 text-sm leading-6">
+                  Hoy ya definiste <span className="font-bold text-black">&quot;{palabraDelDia.palabra}&quot;</span>. Mañana hay otra.
+                </p>
+                <Link
+                  href="/inicio/diccionario"
+                  className="mt-4 inline-flex h-10 items-center justify-center px-5 rounded-[47px] bg-neutral-100 text-black text-sm font-bold hover:bg-neutral-200/80 active:bg-neutral-200 transition-colors"
+                >
+                  Ver diccionario
+                </Link>
+              </div>
+            ) : null}
           </div>
         </>
       )}

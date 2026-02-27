@@ -3,9 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { fetchPalabrasConConteo } from "@/lib/diccionario";
 import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
-import type { PalabraConConteo } from "@/types/diccionario";
 import type { Formato } from "@/types/formatos";
 import {
   IconSearch,
@@ -94,10 +92,6 @@ export default function ComunidadPage() {
   const [authorAvatars, setAuthorAvatars] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
-  const [palabrasConConteo, setPalabrasConConteo] = useState<PalabraConConteo[]>([]);
-  const [loadingBiblioteca, setLoadingBiblioteca] = useState(true);
-  const [busquedaBiblioteca, setBusquedaBiblioteca] = useState("");
-
   const [formatos, setFormatos] = useState<Formato[]>([]);
   const [showFiltroComunidad, setShowFiltroComunidad] = useState(false);
   const [showFiltroSeguidos, setShowFiltroSeguidos] = useState(false);
@@ -112,14 +106,6 @@ export default function ComunidadPage() {
   const [authorNamesSeguidos, setAuthorNamesSeguidos] = useState<Record<string, string>>({});
   const [authorAvatarsSeguidos, setAuthorAvatarsSeguidos] = useState<Record<string, string>>({});
   const [loadingSeguidos, setLoadingSeguidos] = useState(true);
-
-  const palabrasFiltradas = useMemo(() => {
-    const q = busquedaBiblioteca.trim().toLowerCase();
-    if (!q) return palabrasConConteo;
-    return palabrasConConteo.filter((p) =>
-      p.palabra.toLowerCase().includes(q)
-    );
-  }, [palabrasConConteo, busquedaBiblioteca]);
 
   const textosComunidadFiltrados = useMemo(() => {
     if (!formatoIdFiltroComunidad) return texts;
@@ -169,15 +155,6 @@ export default function ComunidadPage() {
     });
   }, [textosSeguidosFiltrados, busquedaComunidad]);
 
-  const bibliotecaRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.location.hash) return;
-    if (window.location.hash === "#biblioteca-significados") {
-      bibliotecaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
-
   useEffect(() => {
     if (showBusquedaComunidad) {
       const t = setTimeout(() => inputBusquedaComunidadRef.current?.focus(), 100);
@@ -199,18 +176,16 @@ export default function ComunidadPage() {
         setLoadingSeguidos(false);
         return;
       }
-      const [textsRes, palabrasData, formatosData] = await Promise.all([
+      const [textsRes, formatosData] = await Promise.all([
         supabase
           .from("texts")
           .select("id, title, body, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
           .eq("status", "published")
           .order("updated_at", { ascending: false }),
-        fetchPalabrasConConteo().catch(() => []),
         fetchFormatos().catch(() => []),
       ]);
       const rows = (textsRes.data ?? []) as CommunityText[];
       setTexts(rows);
-      setPalabrasConConteo(palabrasData);
       setFormatos(formatosData);
 
       const userIds = [...new Set(rows.map((t) => t.user_id))];
@@ -273,7 +248,6 @@ export default function ComunidadPage() {
       setLoadingSeguidos(false);
 
       setLoading(false);
-      setLoadingBiblioteca(false);
     })();
   }, []);
 
@@ -508,60 +482,6 @@ export default function ComunidadPage() {
             )}
           </div>
 
-          {/* Biblioteca de significados */}
-          <h2
-            ref={bibliotecaRef}
-            id="biblioteca-significados"
-            className="text-black text-base font-bold leading-tight mt-6 mb-2 scroll-mt-4"
-          >
-            Biblioteca de significados
-          </h2>
-          <label className="sr-only" htmlFor="busqueda-biblioteca">
-            Buscar por palabra en la biblioteca
-          </label>
-          <div className="w-full h-12 bg-zinc-100 rounded-[111px] mb-3 flex items-center gap-2 pl-4 pr-3 focus-within:ring-2 focus-within:ring-red/30 focus-within:ring-offset-2">
-            <IconSearch className="size-4 shrink-0 text-neutral-400" aria-hidden />
-            <input
-              id="busqueda-biblioteca"
-              type="search"
-              value={busquedaBiblioteca}
-              onChange={(e) => setBusquedaBiblioteca(e.target.value)}
-              placeholder="Buscar por palabra..."
-              className="flex-1 min-w-0 h-full bg-transparent text-black text-xs placeholder:text-neutral-400 focus:outline-none"
-              aria-label="Buscar por palabra en la biblioteca de significados"
-            />
-          </div>
-
-          {loadingBiblioteca ? (
-            <div className="bg-white rounded-xl p-4 flex items-center justify-center">
-              <p className="text-neutral-400 text-xs">Cargando...</p>
-            </div>
-          ) : palabrasFiltradas.length === 0 ? (
-            <div className="bg-white rounded-xl p-4 text-center">
-              <p className="text-neutral-500 text-xs">
-                {busquedaBiblioteca.trim()
-                  ? `Ninguna palabra coincide con "${busquedaBiblioteca.trim()}".`
-                  : "Aún no hay palabras con significados."}
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] overflow-hidden">
-              {palabrasFiltradas.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/inicio/comunidad/significados/${p.id}`}
-                  className="flex items-center justify-between w-full px-4 py-2.5 text-left border-b border-gray-200 last:border-b-0 hover:bg-neutral-50 active:bg-neutral-100"
-                >
-                  <span className="text-black text-sm font-bold leading-tight">
-                    {p.palabra}
-                  </span>
-                  <span className="text-orange-700 text-xs font-normal leading-tight">
-                    {p.cantidad_significados} significado{p.cantidad_significados !== 1 ? "s" : ""}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </main>
     </div>

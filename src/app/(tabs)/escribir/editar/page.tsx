@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConsignaById } from "@/lib/consignas";
@@ -14,6 +13,7 @@ import {
   IconNavRecursos,
   IconSparklesAI,
   IconRefresh,
+  IconChevronDown,
 } from "@/components/ui/Icons";
 
 const PREGUNTAS_INICIALES = [
@@ -21,10 +21,6 @@ const PREGUNTAS_INICIALES = [
   "¿Qué está en juego en esta escena?",
   "¿Cómo se siente el personaje en este momento?",
 ];
-
-function countWords(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
-}
 
 export default function EditarPage() {
   const router = useRouter();
@@ -35,15 +31,31 @@ export default function EditarPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [consigna, setConsigna] = useState<Consigna | null>(null);
+  const [consignaMinimizada, setConsignaMinimizada] = useState(false);
+  const [consignaDesvinculada, setConsignaDesvinculada] = useState(false);
+  const [showConfirmarDesvincular, setShowConfirmarDesvincular] = useState(false);
   const [showIABox, setShowIABox] = useState(true);
   const [showIAPanel, setShowIAPanel] = useState(false);
   const [showConfirmarPublicar, setShowConfirmarPublicar] = useState(false);
+  const [showConfirmarVolver, setShowConfirmarVolver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [preguntas, setPreguntas] = useState<string[]>(PREGUNTAS_INICIALES);
   const [preguntasLoading, setPreguntasLoading] = useState(false);
   const [preguntasError, setPreguntasError] = useState<string | null>(null);
-  const words = useMemo(() => countWords(body), [body]);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const initialTitleRef = useRef("");
+  const initialBodyRef = useRef("");
+
+  const canPublish = title.trim() !== "" && body.trim() !== "";
+
+  // Ajustar altura del textarea del título al cargar o cambiar el valor
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
 
   async function fetchPreguntas(regenerarIndex?: number) {
     setPreguntasError(null);
@@ -97,6 +109,8 @@ export default function EditarPage() {
       if (!error && data) {
         setTitle(data.title ?? "");
         setBody(data.body ?? "");
+        initialTitleRef.current = data.title ?? "";
+        initialBodyRef.current = data.body ?? "";
         if (data.consigna_id) {
           const c = await fetchConsignaById(data.consigna_id);
           if (c) setConsigna(c);
@@ -114,6 +128,8 @@ export default function EditarPage() {
       if (!cancelled && consigna) {
         setTitle(consigna.titulo);
         setBody(consigna.descripcion ?? "");
+        initialTitleRef.current = consigna.titulo;
+        initialBodyRef.current = consigna.descripcion ?? "";
       }
     })();
     return () => {
@@ -136,6 +152,7 @@ export default function EditarPage() {
       title: title.trim() || "Sin título",
       body: body.trim(),
       status: "draft" as const,
+      ...(textId && consignaDesvinculada && { consigna_id: null }),
     };
 
     if (textId) {
@@ -169,6 +186,7 @@ export default function EditarPage() {
   }
 
   function handlePublicar() {
+    if (!canPublish) return;
     setShowConfirmarPublicar(true);
   }
 
@@ -178,14 +196,37 @@ export default function EditarPage() {
     router.push(target);
   }
 
+  function handleVolver() {
+    const tituloActual = title.trim();
+    const cuerpoActual = body.trim();
+    if (
+      tituloActual !== initialTitleRef.current.trim() ||
+      cuerpoActual !== initialBodyRef.current.trim()
+    ) {
+      setShowConfirmarVolver(true);
+    } else {
+      router.push("/inicio");
+    }
+  }
+
+  function handleConfirmarVolver() {
+    setShowConfirmarVolver(false);
+    router.push("/inicio");
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-neutral-100">
       <Header
         title={title.trim() || "Sin título"}
         leftSlot={
-          <Link href="/inicio" className="p-2 -m-2 text-black" aria-label="Volver">
+          <button
+            type="button"
+            onClick={handleVolver}
+            className="p-2 -m-2 text-black"
+            aria-label="Volver"
+          >
             <IconChevronLeft className="size-7" />
-          </Link>
+          </button>
         }
         rightSlot={
           <button type="button" className="p-1 text-red" aria-label="Editar">
@@ -194,30 +235,85 @@ export default function EditarPage() {
         }
       />
       <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4">
-        {/* Card consigna cuando el texto viene de una consigna */}
-        {consigna && (
-          <div className="shrink-0 w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700 bg-red-50 p-4 mb-4">
-            <span className="text-orange-700 text-sm font-normal font-['Inter'] leading-4">
-              {consigna.formatos_texto?.nombre ?? consigna.tipo}
-            </span>
-            <h2 className="mt-1 text-black text-lg font-bold font-['Inter'] leading-5">
-              {consigna.titulo}
-            </h2>
-            {consigna.descripcion ? (
-              <p className="mt-1 text-black text-sm font-normal font-['Inter'] leading-5">
-                {consigna.descripcion}
-              </p>
-            ) : null}
-          </div>
+        {/* Card consigna: se puede minimizar o desvincular (con confirmación) */}
+        {consigna && !consignaDesvinculada && (
+          <>
+            {consignaMinimizada ? (
+              <div className="shrink-0 w-full rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] border border-orange-700 bg-red-50 px-3 py-2.5 mb-4 flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-black text-sm font-bold font-['Inter'] leading-5">
+                  {consigna.titulo}
+                </p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setConsignaMinimizada(false)}
+                    className="h-8 px-2.5 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
+                  >
+                    <IconChevronDown className="size-3.5 rotate-180" aria-hidden />
+                    Expandir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmarDesvincular(true)}
+                    className="h-8 px-2.5 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
+                  >
+                    Quitar consigna
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="shrink-0 w-full rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] border border-orange-700 bg-red-50 p-3 mb-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-orange-700 text-xs font-normal font-['Inter'] leading-4">
+                      {consigna.formatos_texto?.nombre ?? consigna.tipo}
+                    </span>
+                    <h2 className="mt-0.5 text-black text-base font-bold font-['Inter'] leading-5">
+                      {consigna.titulo}
+                    </h2>
+                    {consigna.descripcion ? (
+                      <p className="mt-0.5 text-black text-xs font-normal font-['Inter'] leading-4 line-clamp-2">
+                        {consigna.descripcion}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setConsignaMinimizada(true)}
+                      className="h-8 px-2.5 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
+                      aria-label="Minimizar consigna"
+                    >
+                      <IconChevronDown className="size-3.5" aria-hidden />
+                      Minimizar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmarDesvincular(true)}
+                      className="h-8 px-2.5 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
+                    >
+                      Quitar consigna
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Título editable */}
-        <div className="shrink-0 w-full mb-2">
-          <input
-            type="text"
+        {/* Título editable: textarea para que haga wrap */}
+        <div className="shrink-0 w-full min-w-0 mb-2">
+          <textarea
+            ref={titleRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full text-black text-2xl font-bold leading-7 bg-transparent border-0 focus:outline-none placeholder:text-neutral-400"
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${el.scrollHeight}px`;
+            }}
+            rows={1}
+            className="w-full min-w-0 text-black text-2xl font-bold leading-7 bg-transparent border-0 focus:outline-none placeholder:text-neutral-400 resize-none overflow-hidden break-words"
             placeholder="Título"
           />
         </div>
@@ -231,33 +327,18 @@ export default function EditarPage() {
           />
         </div>
 
-        <div className="shrink-0 border-t border-neutral-200 py-">
-          <p className="text-center pt-2 text-neutral-400 text-sm font-normal uppercase leading-4">
-            {words} palabras
-          </p>
-        </div>
-
-        {/* Mensaje intro "La IA te hace preguntas...": se puede cerrar; al cerrar queda solo el botón IA */}
+        {/* Aviso IA: barra informativa inline, se puede cerrar */}
         {showIABox && (
-          <div className="shrink-0 mt-4 p-4 bg-red/10 rounded-xl border border-red flex gap-3">
-            <div className="shrink-0 text-red">
-              <IconNavRecursos className="size-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-red text-sm font-bold leading-4">
-                La IA te hace preguntas para seguir
-              </p>
-              <p className="text-black text-xs font-normal leading-4 mt-1">
-                Recordá que no responde ni escribe por vos
-              </p>
-              <p className="text-neutral-600 text-xs font-normal leading-4 mt-0.5">
-                Entrenada por escritores reales para destrabar tu escritura
-              </p>
-            </div>
+          <div className="shrink-0 mt-4 flex items-center gap-2 py-2 px-3 rounded-lg bg-red/5 border border-red/30">
+            <IconNavRecursos className="size-5 shrink-0 text-red" />
+            <p className="min-w-0 flex-1 text-black text-sm leading-5">
+              <span className="font-semibold text-red">La IA te hace preguntas para seguir.</span>{" "}
+              No responde ni escribe por vos.
+            </p>
             <button
               type="button"
               onClick={() => setShowIABox(false)}
-              className="shrink-0 p-1 text-neutral-400 hover:text-black"
+              className="shrink-0 p-1 text-neutral-400 hover:text-black rounded"
               aria-label="Cerrar"
             >
               <svg width="17" height="17" viewBox="0 0 17 17" fill="currentColor" aria-hidden>
@@ -271,19 +352,17 @@ export default function EditarPage() {
           </div>
         )}
 
-        {/* Icono IA: siempre visible cuando el mensaje está cerrado; click abre el panel de preguntas */}
-        {!showIABox && (
-          <div className="shrink-0 mt-4 flex justify-end pb-2">
-            <button
-              type="button"
-              onClick={() => setShowIAPanel(true)}
-              className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
-              aria-label="Generar preguntas con IA"
-            >
-              <IconSparklesAI className="size-5" />
-            </button>
-          </div>
-        )}
+        {/* Botón IA: siempre visible */}
+        <div className="shrink-0 mt-4 flex justify-end pb-2">
+          <button
+            type="button"
+            onClick={() => setShowIAPanel(true)}
+            className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
+            aria-label="Generar preguntas con IA"
+          >
+            <IconSparklesAI className="size-5" />
+          </button>
+        </div>
 
         {/* Panel de preguntas IA (al clickear el icono sparkles) */}
         {showIAPanel && (
@@ -367,7 +446,8 @@ export default function EditarPage() {
           <button
             type="button"
             onClick={handlePublicar}
-            className="flex-1 h-14 min-w-0 rounded-[47px] border-2 border-red text-red text-base font-bold leading-5 tracking-wider flex items-center justify-center hover:bg-red/10 transition-colors"
+            disabled={!canPublish}
+            className="flex-1 h-14 min-w-0 rounded-[47px] border-2 border-red text-red text-base font-bold leading-5 tracking-wider flex items-center justify-center hover:bg-red/10 transition-colors disabled:opacity-50 disabled:pointer-events-none disabled:border-neutral-300 disabled:text-neutral-400"
           >
             PUBLICAR
           </button>
@@ -410,6 +490,94 @@ export default function EditarPage() {
                 className="flex-1 h-12 bg-red text-white text-sm font-bold rounded-[47px] hover:bg-red/90 transition-colors"
               >
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup de confirmación para desvincular consigna */}
+      {showConfirmarDesvincular && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowConfirmarDesvincular(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-desvincular-title"
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg"
+          >
+            <h2
+              id="confirmar-desvincular-title"
+              className="text-lg font-bold text-black leading-5 mb-2"
+            >
+              ¿Desvincular este texto de la consigna?
+            </h2>
+            <p className="text-neutral-600 text-sm leading-5 mb-6">
+              El texto seguirá siendo tuyo pero ya no estará asociado a la consigna. Podés seguir editando igual.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmarDesvincular(false)}
+                className="flex-1 h-12 bg-neutral-200 text-black text-sm font-bold rounded-[47px] hover:bg-neutral-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmarDesvincular(false);
+                  setConsignaDesvinculada(true);
+                  setConsigna(null);
+                }}
+                className="flex-1 h-12 bg-red text-white text-sm font-bold rounded-[47px] hover:bg-red/90 transition-colors"
+              >
+                Desvincular
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup de confirmación para volver sin guardar */}
+      {showConfirmarVolver && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowConfirmarVolver(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-volver-title"
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg"
+          >
+            <h2
+              id="confirmar-volver-title"
+              className="text-lg font-bold text-black leading-5 mb-2"
+            >
+              ¿Descartar cambios?
+            </h2>
+            <p className="text-neutral-600 text-sm leading-5 mb-6">
+              Si volvés sin guardar, los cambios que hiciste se van a perder.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmarVolver(false)}
+                className="flex-1 h-12 bg-neutral-200 text-black text-sm font-bold rounded-[47px] hover:bg-neutral-300 transition-colors"
+              >
+                Seguir editando
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarVolver}
+                className="flex-1 h-12 bg-red text-white text-sm font-bold rounded-[47px] hover:bg-red/90 transition-colors"
+              >
+                Descartar
               </button>
             </div>
           </div>

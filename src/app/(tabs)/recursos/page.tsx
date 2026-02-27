@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   IconSearch,
   IconChevronDown,
+  IconChevronLeft,
   IconHeart,
-  IconDiccionario,
 } from "@/components/ui/Icons";
+import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchRecursos,
@@ -17,15 +19,8 @@ import {
 } from "@/lib/recursos";
 import type { Recurso } from "@/types/recursos";
 
-const DICCIONARIO = {
-  titulo: "Diccionario de palabras",
-  subtitulo: "Consulta rápida",
-  placeholderBusqueda: "Escribí una palabra...",
-  citaEjemplo:
-    "'Tus textos se comparten fuera de la comunidad' — Stephen King (sinónimos)",
-};
-
 export default function RecursosPage() {
+  const router = useRouter();
   const [recursos, setRecursos] = useState<Recurso[]>([]);
   const [favoritos, setFavoritos] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -62,8 +57,6 @@ export default function RecursosPage() {
   }, [load]);
 
   const filtered = filterRecursosBySearch(recursos, search);
-  const destacado = filtered.find((r) => r.destacado) ?? null;
-  const listados = filtered.filter((r) => r.id !== destacado?.id);
 
   const toggleFavorito = useCallback(
     async (recursoId: string) => {
@@ -98,6 +91,23 @@ export default function RecursosPage() {
 
   return (
     <div className="min-h-full bg-neutral-100 overflow-hidden flex flex-col">
+      <Header
+        title="Recursos"
+        leftSlot={
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="p-2 -m-2 text-black"
+            aria-label="Volver"
+          >
+            <IconChevronLeft className="size-7" />
+          </button>
+        }
+      />
+      <div
+        className="w-full h-0 border-t border-zinc-300 shrink-0"
+        aria-hidden
+      />
       {/* Barra de búsqueda */}
       <div className="px-4 pt-4 pb-2">
         <div className="h-14 flex items-center gap-3 px-4 bg-zinc-100 rounded-[111px]">
@@ -113,58 +123,13 @@ export default function RecursosPage() {
         </div>
       </div>
 
-      <div className="flex-1 px-4 pb-6 space-y-6">
-        {/* Recurso destacado (el que tenga destacado === true) */}
-        {destacado && (
-          <section>
-            <h2 className="text-black text-lg font-bold leading-5 mb-4">
-              Recurso destacado
-            </h2>
-            <div className="bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] overflow-hidden">
-              <div className="p-6 space-y-4">
-                <h3 className="text-black text-lg font-bold leading-5">
-                  {destacado.titulo}
-                </h3>
-                <p className="text-black text-sm font-normal leading-5 whitespace-pre-line">
-                  {destacado.descripcion}
-                </p>
-                {destacado.ejemplo_label && destacado.ejemplo_texto && (
-                  <div className="bg-neutral-100 rounded-2xl border-l-2 border-orange-700 py-3 px-5">
-                    <span className="text-orange-700 text-sm font-normal leading-4">
-                      {destacado.ejemplo_label}
-                    </span>
-                    <p className="text-black text-xs font-normal leading-5 mt-1 whitespace-pre-line">
-                      {destacado.ejemplo_texto}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="px-6 pb-6">
-                <button
-                  type="button"
-                  onClick={() => toggleFavorito(destacado.id)}
-                  className={`w-full h-12 flex items-center justify-center gap-2 rounded-[47px] text-sm font-bold leading-4 transition-colors ${
-                    favoritos.has(destacado.id)
-                      ? "bg-orange-700/80 text-white"
-                      : "bg-orange-700 text-white hover:bg-orange-700/90"
-                  }`}
-                >
-                  <IconHeart className="size-[17px]" />
-                  {favoritos.has(destacado.id)
-                    ? "Guardado en favoritos"
-                    : "Guardar en favoritos"}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Resto de recursos (populares / listado) */}
+      <div className="flex-1 px-4 pb-6 space-y-6 mb-6">
+        {/* Listado de recursos */}
         <section>
           <h2 className="text-black text-lg font-bold leading-5 mb-4">
-            Recursos populares
+            Recursos
           </h2>
-          {listados.length === 0 ? (
+          {filtered.length === 0 ? (
             <p className="text-neutral-500 text-sm">
               {search
                 ? "No hay recursos que coincidan con la búsqueda."
@@ -172,35 +137,16 @@ export default function RecursosPage() {
             </p>
           ) : (
             <ul className="space-y-4">
-              {listados.map((recurso) => {
+              {filtered.map((recurso) => {
                 const isExpanded = expandedId === recurso.id;
                 return (
                   <li key={recurso.id}>
                     <article className="bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] overflow-hidden">
                       <div className="p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="text-black text-lg font-bold leading-5">
-                              {recurso.titulo}
-                            </h3>
-                            <p
-                              className={`text-black text-sm font-normal leading-5 mt-1 ${
-                                isExpanded ? "" : "line-clamp-2"
-                              }`}
-                            >
-                              {recurso.descripcion}
-                            </p>
-                            {isExpanded && recurso.ejemplo_label && recurso.ejemplo_texto && (
-                              <div className="mt-3 bg-neutral-100 rounded-2xl border-l-2 border-orange-700 py-3 px-5">
-                                <span className="text-orange-700 text-sm font-normal leading-4">
-                                  {recurso.ejemplo_label}
-                                </span>
-                                <p className="text-black text-xs font-normal leading-5 mt-1 whitespace-pre-line">
-                                  {recurso.ejemplo_texto}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-black text-lg font-bold leading-5 min-w-0 flex-1">
+                            {recurso.titulo}
+                          </h3>
                           <button
                             type="button"
                             onClick={() =>
@@ -216,6 +162,23 @@ export default function RecursosPage() {
                             />
                           </button>
                         </div>
+                        <p
+                          className={`text-black text-sm font-normal leading-5 mt-1 ${
+                            isExpanded ? "" : "line-clamp-2"
+                          }`}
+                        >
+                          {recurso.descripcion}
+                        </p>
+                        {isExpanded && recurso.ejemplo_label && recurso.ejemplo_texto && (
+                          <div className="mt-3 bg-neutral-100 rounded-2xl border-l-2 border-orange-700 py-3 px-5">
+                            <span className="text-orange-700 text-sm font-normal leading-4">
+                              {recurso.ejemplo_label}
+                            </span>
+                            <p className="text-black text-xs font-normal leading-5 mt-1 whitespace-pre-line">
+                              {recurso.ejemplo_texto}
+                            </p>
+                          </div>
+                        )}
                         {isExpanded && (
                           <div className="mt-4 pt-3 border-t border-neutral-100">
                             <button
@@ -241,37 +204,6 @@ export default function RecursosPage() {
               })}
             </ul>
           )}
-        </section>
-
-        {/* Diccionario de palabras */}
-        <section>
-          <div className="bg-red-50 rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700 overflow-hidden mb-8">
-            <div className="p-6 flex flex-col sm:flex-row gap-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-[#CF3617]/10 shrink-0">
-                <IconDiccionario className="size-6 text-[#CF3617]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-black text-lg font-bold leading-5">
-                  {DICCIONARIO.titulo}
-                </h3>
-                <p className="text-black text-sm font-normal leading-5 mt-0.5">
-                  {DICCIONARIO.subtitulo}
-                </p>
-              </div>
-              <div className="hidden sm:block w-12 h-12 rounded-full bg-[#CF3617]/10 shrink-0" />
-            </div>
-            <div className="px-4 pb-6">
-              <div className="h-12 flex items-center gap-3 px-4 bg-white rounded-[45.5px] shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)]">
-                <IconSearch className="size-6 text-[#CF3617] shrink-0" />
-                <span className="text-black text-sm font-normal leading-4">
-                  {DICCIONARIO.placeholderBusqueda}
-                </span>
-              </div>
-              <p className="text-black text-xs font-normal leading-5 mt-4 pl-1">
-                {DICCIONARIO.citaEjemplo}
-              </p>
-            </div>
-          </div>
         </section>
       </div>
     </div>
