@@ -11,7 +11,6 @@ import {
 import { loadOnboardingPrefs } from "@/lib/onboardingPrefs";
 import { maybeCreateReminderNotification } from "@/lib/notifications";
 import type { PalabraDiccionario } from "@/types/diccionario";
-import type { StartMode } from "@/types/onboarding";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 import {
@@ -105,10 +104,15 @@ function TextCardLarge({
   className?: string;
 }) {
   const displayTitle = title.trim() || "Sin título";
+  const href = status === "published" ? `/inicio/comunidad/texto/${id}` : `/escribir/editar?id=${id}`;
   return (
-    <div className={`h-[220px] flex flex-col bg-white rounded-2xl p-4 ${className}`}>
-      <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-hidden">
-        <span className="text-neutral-400 text-xs leading-3 shrink-0">
+    <Link
+      href={href}
+      className={`flex flex-col bg-white rounded-2xl p-4 block ${className}`}
+      aria-label={status === "draft" ? `Editar: ${displayTitle}` : `Ver texto: ${displayTitle}`}
+    >
+      <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-hidden pb-2">
+        <span className="text-neutral-400 text-xs leading-3 shrink-0 pb-2">
           Última edición {formatFecha(updated_at)}
         </span>
         <h3 className="text-lg font-bold text-black leading-5 line-clamp-2 shrink-0">
@@ -123,15 +127,12 @@ function TextCardLarge({
           {status === "draft" ? "Borrador" : "Publicado"}
         </span>
         {status === "draft" && (
-          <Link
-            href={`/escribir/editar?id=${id}`}
-            className="h-10 px-5 bg-red text-white text-sm font-bold leading-4 rounded-[47px] hover:bg-red/90 transition-colors inline-flex items-center justify-center"
-          >
+          <span className="h-10 px-5 bg-red text-white text-sm font-bold leading-4 rounded-[47px] inline-flex items-center justify-center">
             Seguir escribiendo
-          </Link>
+          </span>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -191,7 +192,6 @@ function TextCardSmall({
 export default function InicioPage() {
   const [texts, setTexts] = useState<TextRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [startMode, setStartMode] = useState<StartMode | null>(null);
 
   // Comunidad: textos publicados de otros
   const [communityTexts, setCommunityTexts] = useState<CommunityTextPreview[]>([]);
@@ -237,12 +237,9 @@ export default function InicioPage() {
       setLoading(false);
       setLoadingDiccionario(false);
       if (prefs) {
-        setStartMode(prefs.startMode);
         if (prefs.remindersPerWeek) {
           maybeCreateReminderNotification(supabase, prefs.remindersPerWeek).catch(() => {});
         }
-      } else {
-        setStartMode("zero");
       }
 
       // Textos de comunidad: publicados por otros (RLS solo devuelve autores con want_to_be_read)
@@ -386,28 +383,22 @@ export default function InicioPage() {
         </div>
       )}
 
-      {startMode !== null ? (
+      <div className="flex flex-col gap-3 mb-6">
         <Link
-          href={startMode === "prompts" ? "/consignas" : "/escribir/editar"}
-          className="flex items-center justify-center gap-2 py-3 mb-6 text-red text-base font-bold leading-5"
+          href="/escribir/editar"
+          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
         >
-          {startMode === "prompts" ? (
-            <>
-              <IconNavConsignas className="w-[18px] h-[18px] shrink-0" />
-              Escribir con consignas
-            </>
-          ) : (
-            <>
-              <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
-              Escribir desde cero
-            </>
-          )}
+          <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
+          Escribir desde cero
         </Link>
-      ) : (
-        <div className="flex items-center justify-center py-3 mb-6 min-h-[2.5rem]">
-          <span className="text-neutral-400 text-sm">Cargando...</span>
-        </div>
-      )}
+        <Link
+          href="/consignas"
+          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
+        >
+          <IconNavConsignas className="w-[18px] h-[18px] shrink-0" />
+          Escribir con consignas
+        </Link>
+      </div>
 
       <SectionHeader title="Comunidad" href="/inicio/comunidad" />
       {loadingCommunity ? (

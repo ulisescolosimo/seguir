@@ -10,6 +10,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        diccionario: ["var(--font-diccionario)", "Georgia", "serif"],
       },
       colors: {
         red: {

@@ -434,7 +434,7 @@ export default function ComunidadPage() {
           )}
 
           {/* Sección Textos de escritores que seguís */}
-          <div className="mt-6">
+          <div className="mt-6 mb-6">
             <SectionHeader
               title="Textos de escritores que seguís"
               onFilter={() => setShowFiltroSeguidos(true)}

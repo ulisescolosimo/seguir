@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ValueCard } from "@/components/onboarding/ValueCard";
-import { PillSelect } from "@/components/onboarding/PillSelect";
 import { ReminderSelect } from "@/components/onboarding/ReminderSelect";
 import { PrivacySwitch } from "@/components/ui/PrivacySwitch";
 import { createClient } from "@/lib/supabase/client";
 import { saveOnboardingPrefs } from "@/lib/onboardingPrefs";
-import type { StartMode } from "@/types/onboarding";
 
 /** Logo "Seguir" en SVG para evitar pixelado. */
 const LogoSeguirSvg = () => (
@@ -53,7 +51,6 @@ const IconIASoloPreguntas = () => (
 
 export default function SeguirPage() {
   const router = useRouter();
-  const [startMode, setStartMode] = useState<StartMode>("zero");
   const [remindersPerWeek, setRemindersPerWeek] = useState<0 | 1 | 2 | 3>(1);
   const [wantToBeRead, setWantToBeRead] = useState(true);
   const [wantComments, setWantComments] = useState(true);
@@ -63,7 +60,7 @@ export default function SeguirPage() {
   async function handleEmpezar() {
     const supabase = createClient();
     await saveOnboardingPrefs(
-      { onboardingCompleted: true, startMode, remindersPerWeek },
+      { onboardingCompleted: true, remindersPerWeek },
       supabase,
       {
         privacy: {
@@ -107,13 +104,6 @@ export default function SeguirPage() {
             icon={<IconIASoloPreguntas />}
           />
         </div>
-
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-bold text-black leading-5">
-            ¿Cómo querés empezar hoy?
-          </h2>
-          <PillSelect value={startMode} onChange={setStartMode} />
-        </section>
 
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-bold text-black leading-6">

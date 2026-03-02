@@ -23,6 +23,7 @@ export default function PublicarPage() {
 
   const [titulo, setTitulo] = useState("");
   const [formatoId, setFormatoId] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [formatos, setFormatos] = useState<Formato[]>([]);
   const [loadingFormatos, setLoadingFormatos] = useState(true);
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -44,7 +45,7 @@ export default function PublicarPage() {
       .finally(() => setLoadingFormatos(false));
   }, []);
 
-  // Cargar datos del texto cuando hay id
+  // Cargar datos del texto cuando hay id (incluye texto ya publicado: título, formato, imagen)
   useEffect(() => {
     if (!textId) {
       setLoading(false);
@@ -54,12 +55,13 @@ export default function PublicarPage() {
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("texts")
-        .select("title, formato_id")
+        .select("title, formato_id, image_url")
         .eq("id", textId)
         .single();
       if (!fetchError && data) {
         setTitulo(data.title ?? "");
         setFormatoId(data.formato_id ?? null);
+        setExistingImageUrl(data.image_url?.trim() || null);
       }
       setLoading(false);
     })();
@@ -129,7 +131,7 @@ export default function PublicarPage() {
       ? formatos.find((f) => f.id === formatoId)?.nombre ?? null
       : null;
 
-    // Con textId: publicar requiere título, formato e imagen
+    // Con textId: publicar requiere título, formato e imagen (nueva o ya existente)
     if (textId) {
       if (!titulo.trim()) {
         setError("Completá el título.");
@@ -141,7 +143,8 @@ export default function PublicarPage() {
         setPublishing(false);
         return;
       }
-      if (!imagenFile) {
+      const hasImage = imagenFile || existingImageUrl;
+      if (!hasImage) {
         setError("Subí una imagen.");
         setPublishing(false);
         return;
@@ -172,7 +175,7 @@ export default function PublicarPage() {
       return;
     }
 
-    let imageUrl: string | null = null;
+    let imageUrl: string | null = existingImageUrl ?? null;
 
     if (imagenFile) {
       if (imagenFile.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
@@ -247,7 +250,7 @@ export default function PublicarPage() {
   const todosCompletos = Boolean(
     titulo.trim() &&
     formatoId &&
-    (textId ? imagenFile : true)
+    (textId ? (imagenFile || existingImageUrl) : true)
   );
 
   return (
@@ -398,6 +401,17 @@ export default function PublicarPage() {
               onChange={handleFileChange}
               className="hidden"
             />
+            {existingImageUrl && !imagenFile && (
+              <div className="mb-3 w-full max-w-[12rem] aspect-[16/10] relative rounded-xl overflow-hidden bg-neutral-200">
+                <Image
+                  src={existingImageUrl}
+                  alt=""
+                  fill
+                  className="object-cover"
+                />
+                <p className="mt-1.5 text-neutral-600 text-xs">Imagen actual (elegí otra para reemplazar)</p>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -409,7 +423,7 @@ export default function PublicarPage() {
                   fill="currentColor"
                 />
               </svg>
-              CARGAR IMAGEN
+              {existingImageUrl || imagenFile ? "CAMBIAR IMAGEN" : "CARGAR IMAGEN"}
             </button>
             {imagenFile && (
               <p className="mt-2 text-neutral-600 text-sm">{imagenFile.name}</p>

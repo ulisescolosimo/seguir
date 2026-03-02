@@ -9,9 +9,7 @@ import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 import { IconChevronDown } from "@/components/ui/Icons";
 import { PrivacySwitch } from "@/components/ui/PrivacySwitch";
-import { PillSelect } from "@/components/onboarding/PillSelect";
 import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
-import type { StartMode } from "@/types/onboarding";
 
 const BUCKET_IMAGENES = "text-images";
 const MAX_AVATAR_SIZE_MB = 2;
@@ -23,7 +21,6 @@ export default function PerfilPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [remindersPerWeek, setRemindersPerWeek] = useState<RemindersValue>(1);
-  const [startMode, setStartMode] = useState<StartMode>("zero");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [quieroQueMeLean, setQuieroQueMeLean] = useState(true);
@@ -72,7 +69,7 @@ export default function PerfilPage() {
       const { data } = await supabase
         .from("profiles")
         .select(
-          "first_name, last_name, username, avatar_url, reminders_per_week, start_mode, want_to_be_read, want_comments, public_comments, allow_share_texts"
+          "first_name, last_name, username, avatar_url, reminders_per_week, want_to_be_read, want_comments, public_comments, allow_share_texts"
         )
         .eq("id", user.id)
         .single();
@@ -87,9 +84,6 @@ export default function PerfilPage() {
             Math.max(0, data.reminders_per_week)
           ) as RemindersValue;
           setRemindersPerWeek(v);
-        }
-        if (data.start_mode === "prompts" || data.start_mode === "zero") {
-          setStartMode(data.start_mode);
         }
         if (typeof data.want_to_be_read === "boolean")
           setQuieroQueMeLean(data.want_to_be_read);
@@ -261,26 +255,6 @@ export default function PerfilPage() {
         {
           id: user.id,
           reminders_per_week: value,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-    }
-    setSaving(false);
-  }
-
-  async function saveStartMode(value: StartMode) {
-    setStartMode(value);
-    setSaving(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").upsert(
-        {
-          id: user.id,
-          start_mode: value,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
@@ -548,7 +522,8 @@ export default function PerfilPage() {
           </button>
         </div>
 
-        {/* Hábitos de escritura */}
+        {/* Hábitos de escritura - oculto por ahora */}
+        {false && (
         <section className="mt-8">
           <h2 className="text-black text-lg font-bold font-['Inter'] leading-5 mb-2">
             Hábitos de escritura
@@ -589,6 +564,7 @@ export default function PerfilPage() {
             </Link>
           </div>
         </section>
+        )}
 
         {/* Textos de quienes sigo */}
         <section className="mt-6">
@@ -711,24 +687,6 @@ export default function PerfilPage() {
                 );
               })}
             </div>
-          )}
-        </section>
-
-        {/* Cómo querés empezar (desde cero o con consignas) */}
-        <section className="mt-8">
-          <h2 className="text-black text-lg font-bold font-['Inter'] leading-5 mb-1">
-            Cómo querés empezar
-          </h2>
-          <p className="text-neutral-400 text-sm font-normal font-['Inter'] leading-5 mb-4">
-            En Inicio verás el botón para escribir según esta preferencia.
-          </p>
-          {loading ? (
-            <p className="text-neutral-500 text-sm">Cargando...</p>
-          ) : (
-            <PillSelect
-              value={startMode}
-              onChange={(value) => saveStartMode(value)}
-            />
           )}
         </section>
 

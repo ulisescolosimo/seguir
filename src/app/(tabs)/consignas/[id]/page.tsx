@@ -264,10 +264,7 @@ export default function ConsignaEscribirPage() {
         {consigna && !consignaQuitada && (
           <div className="shrink-0 w-full rounded-2xl border border-orange-700/25 bg-orange-50/90 px-3 py-2.5 mb-4 flex flex-col gap-2">
             <div className="min-w-0">
-              <span className="inline-block px-2 py-0.5 rounded-full bg-orange-700/15 text-orange-700 text-xs font-medium leading-4">
-                {consigna.formatos_texto?.nombre ?? consigna.tipo ?? "Consigna"}
-              </span>
-              <h2 className="mt-1 text-black text-sm font-bold leading-5">
+              <h2 className="text-black text-sm font-bold leading-5">
                 {consigna.titulo}
               </h2>
               {consigna.descripcion ? (

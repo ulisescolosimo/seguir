@@ -64,7 +64,7 @@ export default function SignificadosPage() {
   }, [palabraId]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-100">
+    <div className="flex flex-col min-h-screen bg-[#f5f0e8]">
       <Header
         title={palabraNombre || "Significados"}
         leftSlot={
@@ -77,24 +77,24 @@ export default function SignificadosPage() {
           </Link>
         }
       />
-      <main className="flex-1 overflow-y-auto px-5 py-6 pb-8">
+      <main className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <p className="text-neutral-400 text-sm">Cargando significados...</p>
+            <p className="text-neutral-500 text-sm font-serif">Cargando significados...</p>
           </div>
         ) : error ? (
-          <div className="bg-white rounded-2xl p-6 text-center">
+          <div className="mt-4 mx-4 p-6 bg-white/80 rounded border border-red/20 text-center max-w-[65ch] mx-auto">
             <p className="text-red text-sm">{error}</p>
             <Link
               href="/inicio/diccionario"
-              className="mt-3 inline-block text-orange-700 text-sm font-bold hover:underline"
+              className="mt-3 inline-block text-red text-sm font-bold hover:underline"
             >
               Volver a Diccionario
             </Link>
           </div>
         ) : definiciones.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center">
-            <p className="text-neutral-500 text-sm">
+          <div className="mt-4 mx-4 p-8 bg-white/80 rounded border border-red/20 text-center max-w-[65ch] mx-auto">
+            <p className="text-neutral-600 text-sm font-serif">
               Nadie ha definido &quot;{palabraNombre}&quot; todavía.
             </p>
             {puedeDefinirAqui && (
@@ -107,46 +107,57 @@ export default function SignificadosPage() {
             )}
             <Link
               href="/inicio/diccionario"
-              className="mt-4 block text-orange-700 text-sm font-bold hover:underline"
+              className="mt-4 block text-red text-sm font-bold hover:underline"
             >
               Volver a Diccionario
             </Link>
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <p className="text-neutral-500 text-sm">
-                {definiciones.length} significado{definiciones.length !== 1 ? "s" : ""}
+            {/* Barra superior tipo diccionario: cantidad + acción */}
+            <div className="sticky top-0 z-10 bg-[#f5f0e8]/95 border-b border-red/10 px-4 py-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-neutral-600 text-xs font-serif tabular-nums">
+                {definiciones.length} acepción{definiciones.length !== 1 ? "es" : ""}
               </p>
               {puedeDefinirAqui && (
                 <Link
                   href="/inicio/definir"
-                  className="h-10 px-5 bg-red text-white text-sm font-bold leading-4 rounded-[47px] hover:bg-red/90 transition-colors inline-flex items-center justify-center"
+                  className="h-8 px-4 bg-red text-white text-xs font-bold rounded-full hover:bg-red/90 transition-colors inline-flex items-center justify-center"
                 >
                   Definir
                 </Link>
               )}
             </div>
-            <div className="space-y-5">
-              {definiciones.map((d) => (
-                <article
-                  key={`${d.user_id}-${d.palabra_id}`}
-                  className="bg-white rounded-2xl p-4 shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)]"
-                >
-                  <p className="text-black text-base leading-7 whitespace-pre-wrap">
-                    {d.definicion}
-                  </p>
-                  <p className="mt-2 text-neutral-400 text-xs leading-4">
-                    Por{" "}
-                    <Link
-                      href={`/inicio/comunidad/usuario/${d.user_id}`}
-                      className="text-orange-700 font-medium hover:underline"
-                    >
-                      {d.author_name}
-                    </Link>
-                  </p>
-                </article>
-              ))}
+
+            {/* Columna tipo diccionario de papel */}
+            <div className="px-4 py-6 pb-10 max-w-[65ch] mx-auto">
+              <h1 className="font-serif text-2xl font-bold text-red mb-6 pb-1 border-b border-red/20">
+                {palabraNombre}
+              </h1>
+              <ol className="font-serif text-[15px] leading-[1.75] text-neutral-800 list-none pl-0 space-y-0">
+                {definiciones.map((d, i) => (
+                  <li
+                    key={`${d.user_id}-${d.palabra_id}-${i}`}
+                    className="relative pl-[2.25rem] pr-0 pt-[0.6rem] pb-[0.6rem] border-b border-red/10 last:border-b-0"
+                  >
+                    <span className="absolute left-0 top-[0.6rem] text-red/80 font-bold text-[13px] tabular-nums">
+                      {i + 1}.
+                    </span>
+                    <p className="whitespace-pre-wrap m-0">
+                      {d.definicion}
+                    </p>
+                    <p className="mt-1.5 mb-0 text-[12px] text-red/70 font-serif">
+                      —{" "}
+                      <Link
+                        href={`/inicio/comunidad/usuario/${d.user_id}`}
+                        className="text-red hover:text-red/90 hover:underline"
+                      >
+                        {d.author_name}
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ol>
             </div>
           </>
         )}

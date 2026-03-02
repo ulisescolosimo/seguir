@@ -49,10 +49,7 @@ export default function ConsignasPage() {
             {consignas.map((c) => (
               <li key={c.id}>
                 <div className="w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] bg-white p-5 flex flex-col">
-                  <span className="text-orange-700 text-sm font-normal font-['Inter'] leading-4">
-                    {c.formatos_texto?.nombre ?? c.tipo}
-                  </span>
-                  <h3 className="mt-2 text-black text-lg font-bold font-['Inter'] leading-5">
+                  <h3 className="text-neutral-800 text-base font-medium font-['Inter'] leading-5">
                     {c.titulo}
                   </h3>
                   <p className="mt-2 text-black text-sm font-normal font-['Inter'] leading-5 line-clamp-2">

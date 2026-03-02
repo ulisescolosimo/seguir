@@ -15,6 +15,7 @@ type TextData = {
   formatos_texto: { nombre: string }[] | null;
   image_url: string | null;
   updated_at: string;
+  published_at?: string | null;
   user_id: string;
 };
 
@@ -58,7 +59,7 @@ export default function CuentoPublicPage() {
       try {
         const { data: textRow, error: textError } = await supabase
           .from("texts")
-          .select("id, title, body, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+          .select("id, title, body, tematica, formatos_texto(nombre), image_url, updated_at, published_at, user_id")
           .eq("id", textId)
           .eq("status", "published")
           .single();
@@ -207,6 +208,12 @@ export default function CuentoPublicPage() {
               {formatFecha(text.updated_at)}
             </span>
           </div>
+
+          {text.published_at && new Date(text.updated_at).getTime() > new Date(text.published_at).getTime() + 1000 && (
+            <p className="mt-2 text-neutral-500 text-xs italic">
+              Este texto fue editado después de publicarse.
+            </p>
+          )}
 
           <h1 className="text-black text-2xl font-bold leading-7 mt-2">
             {displayTitle}
