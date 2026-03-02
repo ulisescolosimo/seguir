@@ -11,6 +11,7 @@ import {
 import { loadOnboardingPrefs } from "@/lib/onboardingPrefs";
 import { maybeCreateReminderNotification } from "@/lib/notifications";
 import type { PalabraDiccionario } from "@/types/diccionario";
+import type { StartMode } from "@/types/onboarding";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
 import {
@@ -18,6 +19,7 @@ import {
   IconPhoto,
   IconPalabraHeart,
   IconEscribirDesdeCero,
+  IconNavConsignas,
   IconInfo,
 } from "@/components/ui/Icons";
 import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
@@ -109,11 +111,6 @@ function TextCardLarge({
         <span className="text-neutral-400 text-xs leading-3 shrink-0">
           Última edición {formatFecha(updated_at)}
         </span>
-        {hasConsigna && (
-          <span className="shrink-0 text-orange-700 text-xs font-medium leading-4">
-            Desde consigna
-          </span>
-        )}
         <h3 className="text-lg font-bold text-black leading-5 line-clamp-2 shrink-0">
           {displayTitle}
         </h3>
@@ -194,6 +191,7 @@ function TextCardSmall({
 export default function InicioPage() {
   const [texts, setTexts] = useState<TextRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startMode, setStartMode] = useState<StartMode | null>(null);
 
   // Comunidad: textos publicados de otros
   const [communityTexts, setCommunityTexts] = useState<CommunityTextPreview[]>([]);
@@ -222,7 +220,7 @@ export default function InicioPage() {
         return;
       }
       setUserId(user.id);
-      const [textsData, palabrasData, defsData] = await Promise.all([
+      const [textsData, palabrasData, defsData, prefs] = await Promise.all([
         supabase
           .from("texts")
           .select("id, title, body, status, updated_at, consigna_id")
@@ -230,6 +228,7 @@ export default function InicioPage() {
           .order("updated_at", { ascending: false }),
         fetchPalabrasDiccionario().catch(() => []),
         fetchMisDefiniciones(user.id).catch(() => ({})),
+        loadOnboardingPrefs(supabase),
       ]);
       setTexts((textsData.data as TextRecord[]) ?? []);
       setPalabras(palabrasData);
@@ -237,11 +236,13 @@ export default function InicioPage() {
       setPalabraDelDia(getPalabraDelDia(palabrasData));
       setLoading(false);
       setLoadingDiccionario(false);
-
-      // Recordatorios de escritura: crear hasta reminders_per_week por semana si corresponde
-      const prefs = await loadOnboardingPrefs(supabase);
-      if (prefs?.remindersPerWeek) {
-        maybeCreateReminderNotification(supabase, prefs.remindersPerWeek).catch(() => {});
+      if (prefs) {
+        setStartMode(prefs.startMode);
+        if (prefs.remindersPerWeek) {
+          maybeCreateReminderNotification(supabase, prefs.remindersPerWeek).catch(() => {});
+        }
+      } else {
+        setStartMode("zero");
       }
 
       // Textos de comunidad: publicados por otros (RLS solo devuelve autores con want_to_be_read)
@@ -385,13 +386,28 @@ export default function InicioPage() {
         </div>
       )}
 
-      <Link
-        href="/escribir/editar"
-        className="flex items-center justify-center gap-2 py-3 mb-6 text-red text-base font-bold leading-5"
-      >
-        <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
-        Escribir desde cero
-      </Link>
+      {startMode !== null ? (
+        <Link
+          href={startMode === "prompts" ? "/consignas" : "/escribir/editar"}
+          className="flex items-center justify-center gap-2 py-3 mb-6 text-red text-base font-bold leading-5"
+        >
+          {startMode === "prompts" ? (
+            <>
+              <IconNavConsignas className="w-[18px] h-[18px] shrink-0" />
+              Escribir con consignas
+            </>
+          ) : (
+            <>
+              <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
+              Escribir desde cero
+            </>
+          )}
+        </Link>
+      ) : (
+        <div className="flex items-center justify-center py-3 mb-6 min-h-[2.5rem]">
+          <span className="text-neutral-400 text-sm">Cargando...</span>
+        </div>
+      )}
 
       <SectionHeader title="Comunidad" href="/inicio/comunidad" />
       {loadingCommunity ? (

@@ -12,7 +12,6 @@ import {
   IconNavRecursos,
   IconSparklesAI,
   IconRefresh,
-  IconChevronDown,
 } from "@/components/ui/Icons";
 
 const PREGUNTAS_INICIALES = [
@@ -30,7 +29,6 @@ export default function EditarPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [consigna, setConsigna] = useState<Consigna | null>(null);
-  const [consignaMinimizada, setConsignaMinimizada] = useState(false);
   const [consignaDesvinculada, setConsignaDesvinculada] = useState(false);
   const [showConfirmarDesvincular, setShowConfirmarDesvincular] = useState(false);
   const [showIABox, setShowIABox] = useState(true);
@@ -223,70 +221,30 @@ export default function EditarPage() {
         backHref="/inicio"
       />
       <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4">
-        {/* Card consigna: se puede minimizar o desvincular (con confirmación) */}
+        {/* Card consigna compacta: solo desvincular */}
         {consigna && !consignaDesvinculada && (
-          <>
-            {consignaMinimizada ? (
-              <div className="shrink-0 w-full rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] border border-orange-700 bg-red-50 px-3 py-2.5 mb-4 flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-black text-sm font-bold font-['Inter'] leading-5">
-                  {consigna.titulo}
+          <div className="shrink-0 w-full rounded-2xl border border-orange-700/25 bg-orange-50/90 px-3 py-2.5 mb-4 flex flex-col gap-2">
+            <div className="min-w-0">
+              <span className="inline-block px-2 py-0.5 rounded-full bg-orange-700/15 text-orange-700 text-xs font-medium leading-4">
+                {consigna.formatos_texto?.nombre ?? consigna.tipo}
+              </span>
+              <h2 className="mt-1 text-black text-sm font-bold leading-5">
+                {consigna.titulo}
+              </h2>
+              {consigna.descripcion ? (
+                <p className="mt-0.5 text-neutral-700 text-xs leading-4">
+                  {consigna.descripcion}
                 </p>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setConsignaMinimizada(false)}
-                    className="h-8 px-2.5 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
-                  >
-                    <IconChevronDown className="size-3.5 rotate-180" aria-hidden />
-                    Expandir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmarDesvincular(true)}
-                    className="h-8 px-2.5 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
-                  >
-                    Quitar consigna
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="shrink-0 w-full rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] border border-orange-700 bg-red-50 p-3 mb-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-orange-700 text-xs font-normal font-['Inter'] leading-4">
-                      {consigna.formatos_texto?.nombre ?? consigna.tipo}
-                    </span>
-                    <h2 className="mt-0.5 text-black text-base font-bold font-['Inter'] leading-5">
-                      {consigna.titulo}
-                    </h2>
-                    {consigna.descripcion ? (
-                      <p className="mt-0.5 text-black text-xs font-normal font-['Inter'] leading-4 line-clamp-2">
-                        {consigna.descripcion}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setConsignaMinimizada(true)}
-                      className="h-8 px-2.5 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
-                      aria-label="Minimizar consigna"
-                    >
-                      <IconChevronDown className="size-3.5" aria-hidden />
-                      Minimizar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmarDesvincular(true)}
-                      className="h-8 px-2.5 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
-                    >
-                      Quitar consigna
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowConfirmarDesvincular(true)}
+              className="self-start h-8 px-3 rounded-full text-orange-700 text-xs font-bold hover:bg-orange-700/10 active:bg-orange-700/15"
+            >
+              Quitar consigna
+            </button>
+          </div>
         )}
 
         {/* Título editable: textarea para que haga wrap */}
@@ -340,17 +298,19 @@ export default function EditarPage() {
           </div>
         )}
 
-        {/* Botón IA: siempre visible */}
-        <div className="shrink-0 mt-4 flex justify-end pb-2">
-          <button
-            type="button"
-            onClick={() => setShowIAPanel(true)}
-            className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
-            aria-label="Generar preguntas con IA"
-          >
-            <IconSparklesAI className="size-5" />
-          </button>
-        </div>
+        {/* Botón IA: se oculta cuando el generador está abierto */}
+        {!showIAPanel && (
+          <div className="shrink-0 mt-4 flex justify-end pb-2">
+            <button
+              type="button"
+              onClick={() => setShowIAPanel(true)}
+              className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
+              aria-label="Generar preguntas con IA"
+            >
+              <IconSparklesAI className="size-5" />
+            </button>
+          </div>
+        )}
 
         {/* Panel de preguntas IA (al clickear el icono sparkles) */}
         {showIAPanel && (

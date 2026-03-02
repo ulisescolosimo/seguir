@@ -84,6 +84,16 @@ export async function maybeCreateReminderNotification(
   const diff = day === 0 ? -6 : 1 - day;
   startOfWeek.setDate(startOfWeek.getDate() + diff);
 
+  // Evitar doble creación: si ya hay un reminder en los últimos 2 minutos, no crear otro
+  const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+  const { data: veryRecent } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("type", "reminder")
+    .gte("created_at", twoMinutesAgo);
+  if (veryRecent && veryRecent.length > 0) return;
+
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
   const { data: recent } = await supabase

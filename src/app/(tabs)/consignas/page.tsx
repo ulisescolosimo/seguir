@@ -48,7 +48,7 @@ export default function ConsignasPage() {
           <ul className="mt-4 space-y-5">
             {consignas.map((c) => (
               <li key={c.id}>
-                <div className="w-full min-h-[12rem] rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] bg-white p-5 flex flex-col">
+                <div className="w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] bg-white p-5 flex flex-col">
                   <span className="text-orange-700 text-sm font-normal font-['Inter'] leading-4">
                     {c.formatos_texto?.nombre ?? c.tipo}
                   </span>
@@ -58,7 +58,7 @@ export default function ConsignasPage() {
                   <p className="mt-2 text-black text-sm font-normal font-['Inter'] leading-5 line-clamp-2">
                     {c.descripcion}
                   </p>
-                  <div className="mt-auto pt-4 flex justify-end">
+                  <div className="mt-2 flex justify-end">
                     <Link
                       href={`/consignas/${c.id}`}
                       className="h-10 px-5 bg-orange-700 rounded-[47px] text-white text-sm font-bold leading-4 flex items-center justify-center"

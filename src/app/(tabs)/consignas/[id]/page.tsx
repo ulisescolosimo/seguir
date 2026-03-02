@@ -6,15 +6,12 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConsignaById } from "@/lib/consignas";
 import type { Consigna } from "@/types/consignas";
-import { Header } from "@/components/layout/Header";
+import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 import {
-  IconChevronLeft,
-  IconEdit,
   IconSave,
   IconNavRecursos,
   IconSparklesAI,
   IconRefresh,
-  IconChevronDown,
 } from "@/components/ui/Icons";
 
 const PREGUNTAS_INICIALES = [
@@ -31,8 +28,8 @@ export default function ConsignaEscribirPage() {
   const textId = searchParams.get("textId");
 
   const [consigna, setConsigna] = useState<Consigna | null>(null);
-  const [consignaMinimizada, setConsignaMinimizada] = useState(false);
   const [consignaQuitada, setConsignaQuitada] = useState(false);
+  const [showConfirmarDesvincular, setShowConfirmarDesvincular] = useState(false);
   const [loadingConsigna, setLoadingConsigna] = useState(!!id);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -122,6 +119,10 @@ export default function ConsignaEscribirPage() {
 
   const fetchPreguntasRef = useRef(fetchPreguntas);
   fetchPreguntasRef.current = fetchPreguntas;
+
+  function handleRegenerarPregunta(index: number) {
+    fetchPreguntas(index);
+  }
 
   useEffect(() => {
     if (showIAPanel) fetchPreguntasRef.current();
@@ -253,96 +254,36 @@ export default function ConsignaEscribirPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-100">
-      <Header
-        title={title.trim() || "Sin título"}
-        leftSlot={
-          <button
-            type="button"
-            onClick={handleVolver}
-            className="p-2 -m-2 text-black"
-            aria-label="Volver"
-          >
-            <IconChevronLeft className="size-7" />
-          </button>
-        }
-        rightSlot={
-          textId ? (
-            <Link
-              href={`/escribir/editar?id=${textId}`}
-              className="p-2 -m-2 text-red"
-              aria-label="Abrir en editar"
-            >
-              <IconEdit className="size-6" />
-            </Link>
-          ) : null
-        }
+      <UnifiedTabHeader
+        title={title.trim() || "Escribir"}
+        backHref="/consignas"
       />
 
-      <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4">
-        {/* Card consigna: se puede minimizar o quitar para escribir desde cero */}
+      <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4 max-w-full">
+        {/* Card consigna: mismo formato que editar (compacta, columna, Quitar consigna) */}
         {consigna && !consignaQuitada && (
-          <>
-            {consignaMinimizada ? (
-              <div className="shrink-0 w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700 bg-red-50 px-4 py-3 mb-4 flex items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-black text-sm font-bold font-['Inter'] leading-5">
-                  {consigna.titulo}
+          <div className="shrink-0 w-full rounded-2xl border border-orange-700/25 bg-orange-50/90 px-3 py-2.5 mb-4 flex flex-col gap-2">
+            <div className="min-w-0">
+              <span className="inline-block px-2 py-0.5 rounded-full bg-orange-700/15 text-orange-700 text-xs font-medium leading-4">
+                {consigna.formatos_texto?.nombre ?? consigna.tipo ?? "Consigna"}
+              </span>
+              <h2 className="mt-1 text-black text-sm font-bold leading-5">
+                {consigna.titulo}
+              </h2>
+              {consigna.descripcion ? (
+                <p className="mt-0.5 text-neutral-700 text-xs leading-4">
+                  {consigna.descripcion}
                 </p>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setConsignaMinimizada(false)}
-                    className="h-9 px-3 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
-                  >
-                    <IconChevronDown className="size-4 rotate-180" aria-hidden />
-                    Expandir
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConsignaQuitada(true)}
-                    className="h-9 px-3 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
-                  >
-                    Quitar consigna
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="shrink-0 w-full rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700 bg-red-50 p-4 mb-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <span className="text-orange-700 text-sm font-normal font-['Inter'] leading-4">
-                      {consigna.formatos_texto?.nombre ?? consigna.tipo ?? "CONSIGNA"}
-                    </span>
-                    <h2 className="mt-1 text-black text-lg font-bold font-['Inter'] leading-5">
-                      {consigna.titulo}
-                    </h2>
-                    {consigna.descripcion ? (
-                      <p className="mt-1 text-black text-sm font-normal font-['Inter'] leading-5">
-                        {consigna.descripcion}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setConsignaMinimizada(true)}
-                      className="h-9 px-3 rounded-[47px] border border-orange-700 text-orange-700 text-xs font-bold flex items-center gap-1"
-                      aria-label="Minimizar consigna"
-                    >
-                      <IconChevronDown className="size-4" aria-hidden />
-                      Minimizar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConsignaQuitada(true)}
-                      className="h-9 px-3 rounded-[47px] text-orange-700 text-xs font-bold hover:bg-orange-700/10"
-                    >
-                      Quitar y escribir desde cero
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowConfirmarDesvincular(true)}
+              className="self-start h-8 px-3 rounded-full text-orange-700 text-xs font-bold hover:bg-orange-700/10 active:bg-orange-700/15"
+            >
+              Quitar consigna
+            </button>
+          </div>
         )}
 
         {/* Título editable: textarea para que haga wrap */}
@@ -393,17 +334,21 @@ export default function ConsignaEscribirPage() {
           </div>
         )}
 
-        <div className="shrink-0 mt-4 flex justify-end pb-2">
-          <button
-            type="button"
-            onClick={() => setShowIAPanel(true)}
-            className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
-            aria-label="Generar preguntas con IA"
-          >
-            <IconSparklesAI className="size-5" />
-          </button>
-        </div>
+        {/* Botón IA: se oculta cuando el generador está abierto */}
+        {!showIAPanel && (
+          <div className="shrink-0 mt-4 flex justify-end pb-2">
+            <button
+              type="button"
+              onClick={() => setShowIAPanel(true)}
+              className="w-10 h-10 rounded-2xl bg-red flex items-center justify-center text-white hover:bg-red/90 transition-colors"
+              aria-label="Generar preguntas con IA"
+            >
+              <IconSparklesAI className="size-5" />
+            </button>
+          </div>
+        )}
 
+        {/* Panel de preguntas IA (mismo que editar) */}
         {showIAPanel && (
           <div className="shrink-0 mt-4 p-4 bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] relative">
             <button
@@ -421,13 +366,19 @@ export default function ConsignaEscribirPage() {
                 <IconNavRecursos className="size-6" />
               </div>
               <div>
-                <p className="text-black text-lg font-bold leading-5">Te hago preguntas para seguir...</p>
-                <p className="text-black text-xs font-normal leading-4 mt-1">Recordá que no respondo ni escribo por vos</p>
+                <p className="text-black text-lg font-bold leading-5">
+                  Te hago preguntas para seguir...
+                </p>
+                <p className="text-black text-xs font-normal leading-4 mt-1">
+                  Recordá que no respondo ni escribo por vos
+                </p>
               </div>
             </div>
             <div className="mt-4 space-y-3">
               {preguntasLoading && preguntas.every((p, i) => p === PREGUNTAS_INICIALES[i]) ? (
-                <p className="text-neutral-500 text-sm text-center py-4">Generando preguntas...</p>
+                <p className="text-neutral-500 text-sm text-center py-4">
+                  Generando preguntas...
+                </p>
               ) : (
                 [0, 1, 2].map((i) => (
                   <div
@@ -439,7 +390,7 @@ export default function ConsignaEscribirPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => fetchPreguntas(i)}
+                      onClick={() => handleRegenerarPregunta(i)}
                       disabled={preguntasLoading}
                       className="shrink-0 p-1 text-red hover:opacity-80 disabled:opacity-50 disabled:pointer-events-none"
                       aria-label="Regenerar pregunta"
@@ -450,7 +401,9 @@ export default function ConsignaEscribirPage() {
                 ))
               )}
             </div>
-            {preguntasError && <p className="mt-2 text-red text-xs text-center">{preguntasError}</p>}
+            {preguntasError && (
+              <p className="mt-2 text-red text-xs text-center">{preguntasError}</p>
+            )}
             <p className="mt-4 text-center text-neutral-400 text-xs font-normal leading-3 tracking-wide">
               LA ESCRITURA ES HUMANA. LA IA SOLO PREGUNTA
             </p>
@@ -481,6 +434,48 @@ export default function ConsignaEscribirPage() {
           </button>
         </div>
       </div>
+
+      {/* Modal confirmar quitar consigna */}
+      {showConfirmarDesvincular && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowConfirmarDesvincular(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmar-desvincular-title"
+            className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-lg"
+          >
+            <h2 id="confirmar-desvincular-title" className="text-lg font-bold text-black leading-5 mb-2">
+              ¿Quitar la consigna?
+            </h2>
+            <p className="text-neutral-600 text-sm leading-5 mb-6">
+              Seguirás escribiendo en esta pantalla pero ya no vinculado a la consigna. Podés seguir editando igual.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmarDesvincular(false)}
+                className="flex-1 h-12 bg-neutral-200 text-black text-sm font-bold rounded-[47px] hover:bg-neutral-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmarDesvincular(false);
+                  setConsignaQuitada(true);
+                }}
+                className="flex-1 h-12 bg-red text-white text-sm font-bold rounded-[47px] hover:bg-red/90 transition-colors"
+              >
+                Quitar consigna
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showConfirmarPublicar && (
         <div
