@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
@@ -282,11 +283,12 @@ export default function PublicarPage() {
                 </header>
 
                 {previaImageUrl && (
-                  <figure className="w-full rounded-2xl overflow-hidden bg-neutral-200 aspect-[16/10]">
-                    <img
+                  <figure className="w-full rounded-2xl overflow-hidden bg-neutral-200 aspect-[16/10] relative">
+                    <Image
                       src={previaImageUrl}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   </figure>
                 )}

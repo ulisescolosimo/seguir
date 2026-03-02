@@ -90,9 +90,12 @@ export default function EditarPage() {
     fetchPreguntas(index);
   }
 
+  const fetchPreguntasRef = useRef(fetchPreguntas);
+  fetchPreguntasRef.current = fetchPreguntas;
+
   // Generar preguntas cuando se abre el panel de IA
   useEffect(() => {
-    if (showIAPanel) fetchPreguntas();
+    if (showIAPanel) fetchPreguntasRef.current();
   }, [showIAPanel]);
 
   // Cargar borrador cuando hay id en la URL (y consigna si el texto viene de una)

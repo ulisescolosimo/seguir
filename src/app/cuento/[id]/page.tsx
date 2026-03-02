@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { IconShare } from "@/components/ui/Icons";
@@ -189,11 +190,14 @@ export default function CuentoPublicPage() {
       )}
       <main className="flex-1 overflow-y-auto">
         <div className="px-5 py-4 pb-8 max-w-lg mx-auto mb-4">
-          <img
-            src={imageUrl}
-            alt=""
-            className="w-full aspect-[4/3] object-cover rounded-3xl bg-neutral-200"
-          />
+          <div className="w-full aspect-[4/3] relative rounded-3xl bg-neutral-200 overflow-hidden">
+            <Image
+              src={imageUrl}
+              alt=""
+              fill
+              className="object-cover"
+            />
+          </div>
 
           <div className="flex items-center justify-between mt-4 gap-4">
             <span className="text-orange-700 text-sm font-normal leading-4">

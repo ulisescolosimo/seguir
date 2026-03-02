@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -103,9 +103,9 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const [list, count] = await Promise.all([
       fetchNotifications(supabase),
@@ -114,7 +114,7 @@ export function NotificationBell() {
     setNotifications(list);
     setUnreadCount(count);
     setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
     load();
@@ -129,12 +129,12 @@ export function NotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [load, supabase]);
 
   useEffect(() => {
     if (!open) return;
     load();
-  }, [open]);
+  }, [open, load]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

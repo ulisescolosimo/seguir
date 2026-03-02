@@ -120,8 +120,11 @@ export default function ConsignaEscribirPage() {
     }
   }
 
+  const fetchPreguntasRef = useRef(fetchPreguntas);
+  fetchPreguntasRef.current = fetchPreguntas;
+
   useEffect(() => {
-    if (showIAPanel) fetchPreguntas();
+    if (showIAPanel) fetchPreguntasRef.current();
   }, [showIAPanel]);
 
   async function handleGuardar() {

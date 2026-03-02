@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
@@ -395,11 +396,14 @@ export default function PerfilPage() {
                   className="w-20 h-20 rounded-full bg-orange-700/20 flex items-center justify-center overflow-hidden"
                 >
                   {editAvatarPreview ? (
-                    <img
-                      src={editAvatarPreview}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
+                    <span className="w-full h-full relative block">
+                      <Image
+                        src={editAvatarPreview}
+                        alt=""
+                        fill
+                        className="object-cover"
+                      />
+                    </span>
                   ) : (
                     <svg width="28" height="28" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path
@@ -477,11 +481,14 @@ export default function PerfilPage() {
         <div className="flex flex-col items-center pt-10">
           <div className="w-28 h-28 bg-orange-700/20 rounded-[57px] flex items-center justify-center relative overflow-hidden">
             {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <span className="w-full h-full relative block">
+                <Image
+                  src={avatarUrl}
+                  alt=""
+                  fill
+                  className="object-cover"
+                />
+              </span>
             ) : (
               <svg
                 width="34"

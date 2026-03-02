@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -383,11 +384,14 @@ export default function TextoComunidadPage() {
       <main className="flex-1 overflow-y-auto">
         <div className="px-5 py-4 pb-8 max-w-lg mx-auto mb-4">
           {/* Imagen principal */}
-          <img
-            src={imageUrl}
-            alt=""
-            className="w-full aspect-[4/3] object-cover rounded-3xl bg-neutral-200"
-          />
+          <div className="w-full aspect-[4/3] relative rounded-3xl bg-neutral-200 overflow-hidden">
+            <Image
+              src={imageUrl}
+              alt=""
+              fill
+              className="object-cover"
+            />
+          </div>
 
           {/* Temática y fecha */}
           <div className="flex items-center justify-between mt-4 gap-4">

@@ -477,7 +477,7 @@ export default function InicioPage() {
                     Diccionario
                   </h2>
                   <p className="text-black text-sm leading-6">
-                    El diccionario es un espacio donde la comunidad comparte el significado personal de diferentes palabras. No se trata de acertar una definición "correcta" sino de construir desde la propia mirada. Cada día hay una palabra nueva para definir y siempre podés ver y buscar todas las que ya tienen múltiples significados.
+                    El diccionario es un espacio donde la comunidad comparte el significado personal de diferentes palabras. No se trata de acertar una definición &quot;correcta&quot; sino de construir desde la propia mirada. Cada día hay una palabra nueva para definir y siempre podés ver y buscar todas las que ya tienen múltiples significados.
                   </p>
                 </div>
               </div>

@@ -17,13 +17,14 @@ export default function LoginPage() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  // Autofocus: email si está vacío, password si email tiene valor
+  // Autofocus: email si está vacío, password si email tiene valor (solo al montar)
   useEffect(() => {
     if (!email.trim()) {
       emailInputRef.current?.focus();
     } else if (!password) {
       passwordInputRef.current?.focus();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo ejecutar al montar para focus inicial
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
