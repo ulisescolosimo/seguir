@@ -119,12 +119,20 @@ export default function MisTextosPage() {
         ) : texts.length === 0 ? (
           <div className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center py-8">
             <p className="text-neutral-400 text-sm">No tenés textos aún.</p>
-            <Link
-              href="/escribir/editar"
-              className="mt-3 text-red text-sm font-bold hover:underline"
-            >
-              Escribir desde cero
-            </Link>
+            <div className="mt-3 flex flex-col items-center gap-2">
+              <Link
+                href="/escribir/editar"
+                className="text-red text-sm font-bold hover:underline"
+              >
+                Escribir desde cero
+              </Link>
+              <Link
+                href="/consignas"
+                className="text-red text-sm font-bold hover:underline"
+              >
+                Escribir con consigna
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="space-y-8">

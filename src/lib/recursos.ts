@@ -24,6 +24,21 @@ export async function fetchFavoritosRecursos(userId: string): Promise<Set<string
   return new Set((data ?? []).map((r: { recurso_id: string }) => r.recurso_id));
 }
 
+/** Devuelve los recursos completos guardados como favoritos por el usuario, ordenados por orden. */
+export async function fetchRecursosFavoritos(userId: string): Promise<Recurso[]> {
+  const ids = await fetchFavoritosRecursos(userId);
+  if (ids.size === 0) return [];
+  const { createClient } = await import("@/lib/supabase/client");
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("recursos")
+    .select("id, titulo, descripcion, ejemplo_label, ejemplo_texto, destacado, orden, created_at, updated_at")
+    .in("id", [...ids])
+    .order("orden", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Recurso[];
+}
+
 /** Añade un recurso a favoritos del usuario. */
 export async function addFavorito(userId: string, recursoId: string): Promise<void> {
   const { createClient } = await import("@/lib/supabase/client");
@@ -41,6 +56,18 @@ export async function removeFavorito(userId: string, recursoId: string): Promise
     .delete()
     .eq("user_id", userId)
     .eq("recurso_id", recursoId);
+  if (error) throw error;
+}
+
+/** Registra una solicitud de un usuario para que un recurso aparezca próximamente. */
+export async function solicitarRecurso(userId: string, texto: string): Promise<void> {
+  const { createClient } = await import("@/lib/supabase/client");
+  const supabase = createClient();
+  const textoTrim = texto.trim();
+  if (!textoTrim) return;
+  const { error } = await supabase
+    .from("recursos_solicitudes")
+    .insert({ user_id: userId, texto: textoTrim });
   if (error) throw error;
 }
 

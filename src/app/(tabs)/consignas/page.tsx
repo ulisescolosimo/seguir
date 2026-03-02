@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { fetchConsignas } from "@/lib/consignas";
 import type { Consigna } from "@/types/consignas";
-import { IconChevronLeft, IconSearch } from "@/components/ui/Icons";
+import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 
 const SUGERENCIAS_LIMIT = 6;
 
@@ -22,26 +22,7 @@ export default function ConsignasPage() {
 
   return (
     <div className="w-full max-w-[420px] mx-auto min-h-screen bg-neutral-100 overflow-hidden flex flex-col">
-      {/* Header */}
-      <header className="shrink-0 relative flex items-center justify-center h-14 px-4 outline outline-1 outline-offset-[-0.5px] outline-zinc-300">
-        <Link
-          href="/inicio"
-          className="absolute left-4 top-0 bottom-0 w-10 flex items-center justify-center text-black"
-          aria-label="Volver"
-        >
-          <IconChevronLeft className="size-7" />
-        </Link>
-        <h1 className="text-center text-black text-2xl font-bold font-['Inter'] leading-7">
-          Consignas
-        </h1>
-        <Link
-          href="/consignas/buscar"
-          className="absolute right-4 top-0 bottom-0 w-10 flex items-center justify-center text-orange-700"
-          aria-label="Buscar consignas"
-        >
-          <IconSearch className="size-8" />
-        </Link>
-      </header>
+      <UnifiedTabHeader title="Consignas" backHref="/inicio" />
 
       <main className="flex-1 overflow-y-auto px-5 pb-12">
         {/* Sugerencias de hoy + Ver todo */}

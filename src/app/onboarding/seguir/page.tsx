@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ValueCard } from "@/components/onboarding/ValueCard";
 import { PillSelect } from "@/components/onboarding/PillSelect";
 import { ReminderSelect } from "@/components/onboarding/ReminderSelect";
+import { PrivacySwitch } from "@/components/ui/PrivacySwitch";
 import { createClient } from "@/lib/supabase/client";
 import { saveOnboardingPrefs } from "@/lib/onboardingPrefs";
 import type { StartMode } from "@/types/onboarding";
@@ -54,12 +55,24 @@ export default function SeguirPage() {
   const router = useRouter();
   const [startMode, setStartMode] = useState<StartMode>("zero");
   const [remindersPerWeek, setRemindersPerWeek] = useState<0 | 1 | 2 | 3>(1);
+  const [wantToBeRead, setWantToBeRead] = useState(true);
+  const [wantComments, setWantComments] = useState(true);
+  const [publicComments, setPublicComments] = useState(true);
+  const [allowShareTexts, setAllowShareTexts] = useState(true);
 
   async function handleEmpezar() {
     const supabase = createClient();
     await saveOnboardingPrefs(
       { onboardingCompleted: true, startMode, remindersPerWeek },
-      supabase
+      supabase,
+      {
+        privacy: {
+          want_to_be_read: wantToBeRead,
+          want_comments: wantComments,
+          public_comments: publicComments,
+          allow_share_texts: allowShareTexts,
+        },
+      }
     );
     router.refresh();
     router.push("/inicio");
@@ -107,6 +120,61 @@ export default function SeguirPage() {
             ¿Cuántas veces por semana querés que te recordemos escribir?
           </h2>
           <ReminderSelect value={remindersPerWeek} onChange={setRemindersPerWeek} />
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-bold text-black leading-5">
+            Privacidad
+          </h2>
+          <p className="text-neutral-500 text-sm leading-5">
+            Configuración para compartir tus textos con la comunidad.
+          </p>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-4 bg-white rounded-2xl p-4">
+              <div>
+                <p className="text-black text-sm font-bold leading-5">Quiero que me lean</p>
+                <p className="text-neutral-500 text-xs leading-4 mt-0.5">Si está apagado no podrás publicar tus textos</p>
+              </div>
+              <PrivacySwitch
+                checked={wantToBeRead}
+                onChange={setWantToBeRead}
+                aria-label="Quiero que me lean"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 bg-white rounded-2xl p-4">
+              <div>
+                <p className="text-black text-sm font-bold leading-5">Quiero que me comenten</p>
+                <p className="text-neutral-500 text-xs leading-4 mt-0.5">Permitir comentarios de otros usuarios</p>
+              </div>
+              <PrivacySwitch
+                checked={wantComments}
+                onChange={setWantComments}
+                aria-label="Quiero que me comenten"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 bg-white rounded-2xl p-4">
+              <div>
+                <p className="text-black text-sm font-bold leading-5">Comentarios públicos</p>
+                <p className="text-neutral-500 text-xs leading-4 mt-0.5">Los comentarios que recibas serán visibles para otros</p>
+              </div>
+              <PrivacySwitch
+                checked={publicComments}
+                onChange={setPublicComments}
+                aria-label="Comentarios públicos"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 bg-white rounded-2xl p-4">
+              <div>
+                <p className="text-black text-sm font-bold leading-5">Quiero que compartan mis textos</p>
+                <p className="text-neutral-500 text-xs leading-4 mt-0.5">Tus textos se pueden compartir fuera de la comunidad</p>
+              </div>
+              <PrivacySwitch
+                checked={allowShareTexts}
+                onChange={setAllowShareTexts}
+                aria-label="Quiero que compartan mis textos"
+              />
+            </div>
+          </div>
         </section>
 
         <div className="mt-auto pt-4 pb-[env(safe-area-inset-bottom)]">

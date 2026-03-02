@@ -6,45 +6,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
+import { IconChevronDown } from "@/components/ui/Icons";
+import { PrivacySwitch } from "@/components/ui/PrivacySwitch";
+import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 
 const BUCKET_IMAGENES = "text-images";
 const MAX_AVATAR_SIZE_MB = 2;
 
 type RemindersValue = 0 | 1 | 2 | 3;
-
-function PrivacySwitch({
-  checked,
-  onChange,
-  "aria-label": ariaLabel,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  "aria-label": string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
-      className="relative inline-flex flex-shrink-0 h-6 w-11 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2"
-    >
-      {/* Track */}
-      <span
-        className={`absolute inset-0 rounded-full transition-colors duration-200 ${
-          checked ? "bg-orange-700" : "bg-neutral-300"
-        }`}
-      />
-      {/* Thumb: 20px, 2px from edges. When on: left = 44 - 2 - 20 = 22px */}
-      <span
-        className={`absolute top-[2px] h-5 w-5 rounded-full bg-white shadow-sm transition-[left] duration-200 ease-out ${
-          checked ? "left-[22px]" : "left-[2px]"
-        }`}
-      />
-    </button>
-  );
-}
 
 export default function PerfilPage() {
   const router = useRouter();
@@ -78,6 +47,7 @@ export default function PerfilPage() {
   const [savedAuthorNames, setSavedAuthorNames] = useState<Record<string, string>>({});
   const [savedAuthorAvatars, setSavedAuthorAvatars] = useState<Record<string, string>>({});
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [privacyExpanded, setPrivacyExpanded] = useState(false);
 
   const [followingTexts, setFollowingTexts] = useState<CommunityTextCardData[]>([]);
   const [followingAuthorNames, setFollowingAuthorNames] = useState<Record<string, string>>({});
@@ -405,6 +375,7 @@ export default function PerfilPage() {
 
   return (
     <div className="w-full max-w-[384px] mx-auto min-h-screen bg-neutral-100 overflow-hidden relative">
+      <UnifiedTabHeader title="Perfil" backHref="/inicio" />
 
       {/* Modal Editar perfil */}
       {editOpen && (
@@ -712,12 +683,33 @@ export default function PerfilPage() {
 
         {/* Privacidad */}
         <section className="mt-8">
-          <h2 className="text-black text-lg font-bold font-['Inter'] leading-5 mb-1">
-            Privacidad
-          </h2>
-          <p className="text-neutral-400 text-sm font-normal font-['Inter'] leading-5 mb-4">
-            Configuración para compartir tus textos
-          </p>
+          <button
+            type="button"
+            onClick={() => setPrivacyExpanded((e) => !e)}
+            className="w-full flex items-center justify-between gap-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-700 focus-visible:ring-offset-2 rounded-lg"
+            aria-expanded={privacyExpanded}
+            aria-controls="privacy-content"
+            id="privacy-heading"
+          >
+            <h2 className="text-black text-lg font-bold font-['Inter'] leading-5">
+              Privacidad
+            </h2>
+            <IconChevronDown
+              className={`size-5 text-neutral-500 flex-shrink-0 transition-transform duration-200 ${
+                privacyExpanded ? "rotate-180" : ""
+              }`}
+              aria-hidden
+            />
+          </button>
+          <div
+            id="privacy-content"
+            role="region"
+            aria-labelledby="privacy-heading"
+            className={privacyExpanded ? "block" : "hidden"}
+          >
+            <p className="text-neutral-400 text-sm font-normal font-['Inter'] leading-5 mt-1 mb-4">
+              Configuración para compartir tus textos
+            </p>
 
           <div className="border-b border-neutral-200 pb-4 mb-4">
             <div className="flex items-start justify-between gap-4">
@@ -847,10 +839,11 @@ export default function PerfilPage() {
               aria-label="Quiero que compartan mis textos"
             />
           </div>
+          </div>
         </section>
 
         {/* Ayuda y Términos */}
-        <section className="mt-8 border-t border-neutral-200 pt-4">
+        <section className="mt-8 border-t border-neutral-200">
           <Link
             href="#"
             className="flex items-center justify-between py-3 text-black text-lg font-bold font-['Inter'] leading-5"

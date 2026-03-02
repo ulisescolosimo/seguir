@@ -48,7 +48,15 @@ export async function loadOnboardingPrefs(
 /** Guarda prefs en Supabase (si hay sesión) y en localStorage como respaldo. */
 export async function saveOnboardingPrefs(
   prefs: OnboardingPrefs,
-  supabaseClient?: SupabaseClient
+  supabaseClient?: SupabaseClient,
+  options?: {
+    privacy?: {
+      want_to_be_read: boolean;
+      want_comments: boolean;
+      public_comments: boolean;
+      allow_share_texts: boolean;
+    };
+  }
 ): Promise<void> {
   if (typeof window === "undefined") return;
   try {
@@ -60,6 +68,12 @@ export async function saveOnboardingPrefs(
           onboarding_completed: prefs.onboardingCompleted,
           start_mode: prefs.startMode,
           reminders_per_week: prefs.remindersPerWeek,
+          ...(options?.privacy && {
+            want_to_be_read: options.privacy.want_to_be_read,
+            want_comments: options.privacy.want_comments,
+            public_comments: options.privacy.public_comments,
+            allow_share_texts: options.privacy.allow_share_texts,
+          }),
           updated_at: new Date().toISOString(),
         });
       }

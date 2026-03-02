@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { fetchConsignaById } from "@/lib/consignas";
 import type { Consigna } from "@/types/consignas";
-import { Header } from "@/components/layout/Header";
+import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 import {
-  IconChevronLeft,
   IconEdit,
   IconSave,
   IconNavRecursos,
@@ -216,23 +215,9 @@ export default function EditarPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-100">
-      <Header
-        title={title.trim() || "Sin título"}
-        leftSlot={
-          <button
-            type="button"
-            onClick={handleVolver}
-            className="p-2 -m-2 text-black"
-            aria-label="Volver"
-          >
-            <IconChevronLeft className="size-7" />
-          </button>
-        }
-        rightSlot={
-          <button type="button" className="p-1 text-red" aria-label="Editar">
-            <IconEdit className="size-6" />
-          </button>
-        }
+      <UnifiedTabHeader
+        title={title.trim() || "Escribir"}
+        backHref="/inicio"
       />
       <div className="flex-1 min-h-0 flex flex-col overflow-y-auto py-4 pb-8 px-4">
         {/* Card consigna: se puede minimizar o desvincular (con confirmación) */}

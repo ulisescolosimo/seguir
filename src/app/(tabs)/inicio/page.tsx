@@ -8,6 +8,8 @@ import {
   fetchMisDefiniciones,
   getPalabraDelDia,
 } from "@/lib/diccionario";
+import { loadOnboardingPrefs } from "@/lib/onboardingPrefs";
+import { maybeCreateReminderNotification } from "@/lib/notifications";
 import type { PalabraDiccionario } from "@/types/diccionario";
 import { CommunityTextCard } from "@/components/community/CommunityTextCard";
 import type { CommunityTextCardData } from "@/components/community/CommunityTextCard";
@@ -18,6 +20,7 @@ import {
   IconEscribirDesdeCero,
   IconInfo,
 } from "@/components/ui/Icons";
+import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 
 type TextRecord = {
   id: string;
@@ -235,6 +238,12 @@ export default function InicioPage() {
       setLoading(false);
       setLoadingDiccionario(false);
 
+      // Recordatorios de escritura: crear hasta reminders_per_week por semana si corresponde
+      const prefs = await loadOnboardingPrefs(supabase);
+      if (prefs?.remindersPerWeek) {
+        maybeCreateReminderNotification(supabase, prefs.remindersPerWeek).catch(() => {});
+      }
+
       // Textos de comunidad: publicados por otros (RLS solo devuelve autores con want_to_be_read)
       const { data: communityData } = await supabase
         .from("texts")
@@ -320,7 +329,9 @@ export default function InicioPage() {
   };
 
   return (
-    <div className="px-5 py-4 pb-8">
+    <>
+      <UnifiedTabHeader title="Inicio" />
+      <div className="px-5 py-4 pb-8">
       <SectionHeader title="Mis textos" href="/inicio/textos" />
       {loading ? (
         <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center">
@@ -461,29 +472,13 @@ export default function InicioPage() {
                 className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-5 pb-4 flex-1 overflow-y-auto">
+                <div className="p-5 flex-1 overflow-y-auto">
                   <h2 id="modal-diccionario-title" className="text-lg font-bold text-black leading-5 mb-3">
                     Diccionario
                   </h2>
                   <p className="text-black text-sm leading-6">
-                    El diccionario es un espacio donde la comunidad comparte el significado personal de palabras. Cada día hay una palabra para que definas con tu propia mirada; también podés ver y buscar todas las palabras que ya tienen significados.
+                    El diccionario es un espacio donde la comunidad comparte el significado personal de diferentes palabras. No se trata de acertar una definición "correcta" sino de construir desde la propia mirada. Cada día hay una palabra nueva para definir y siempre podés ver y buscar todas las que ya tienen múltiples significados.
                   </p>
-                </div>
-                <div className="p-5 pt-0 flex flex-col gap-3 border-t border-neutral-100">
-                  <Link
-                    href="/inicio/diccionario"
-                    onClick={() => setShowDiccionarioModal(false)}
-                    className="h-12 w-full flex items-center justify-center rounded-[47px] bg-red text-white text-sm font-bold hover:bg-red/90 active:bg-red/80 transition-colors"
-                  >
-                    Ir al diccionario de significados de la comunidad
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setShowDiccionarioModal(false)}
-                    className="h-10 w-full text-neutral-500 text-sm font-medium hover:text-neutral-700 active:text-neutral-800"
-                  >
-                    Cerrar
-                  </button>
                 </div>
               </div>
             </div>
@@ -533,5 +528,6 @@ export default function InicioPage() {
         </>
       )}
     </div>
+    </>
   );
 }
