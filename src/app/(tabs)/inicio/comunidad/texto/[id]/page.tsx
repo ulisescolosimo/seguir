@@ -13,11 +13,6 @@ import {
   IconBookmark,
   IconBookmarkFilled,
   IconComment,
-  IconBrandX,
-  IconBrandFacebook,
-  IconBrandInstagram,
-  IconBrandTikTok,
-  IconLink,
 } from "@/components/ui/Icons";
 import { Header } from "@/components/layout/Header";
 import { useToast } from "@/components/ui/Toast";
@@ -95,7 +90,6 @@ export default function TextoComunidadPage() {
   const [commentError, setCommentError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     if (!textId) {
@@ -259,7 +253,25 @@ export default function TextoComunidadPage() {
 
   async function handleShare() {
     if (!authorAllowsShare || !textId || !text) return;
-    setShowShareModal(true);
+    const url = getShareUrl();
+    const title = getShareTitle();
+    const textToShare = text.body?.trim().slice(0, 100) || title;
+
+    if (typeof navigator === "undefined" || !navigator.share) {
+      toast("Compartir no disponible en este navegador", "error");
+      return;
+    }
+    try {
+      await navigator.share({
+        title,
+        text: textToShare,
+        url,
+      });
+      toast("Compartido", "success");
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      toast("No se pudo compartir", "error");
+    }
   }
 
   function getShareUrl(): string {
@@ -268,54 +280,6 @@ export default function TextoComunidadPage() {
 
   function getShareTitle(): string {
     return text?.title?.trim() || "Sin título";
-  }
-
-  async function copyShareLink() {
-    const url = getShareUrl();
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("Enlace copiado", "success");
-      setShowShareModal(false);
-    } catch {
-      toast("No se pudo copiar el enlace", "error");
-    }
-  }
-
-  function shareToTwitter() {
-    const url = getShareUrl();
-    const title = getShareTitle();
-    const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-    setShowShareModal(false);
-  }
-
-  function shareToFacebook() {
-    const url = getShareUrl();
-    const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-    setShowShareModal(false);
-  }
-
-  async function shareToInstagram() {
-    const url = getShareUrl();
-    try {
-      await navigator.clipboard.writeText(url);
-      setShowShareModal(false);
-      toast("Enlace copiado. Pégalo en Instagram para compartir.", "success");
-    } catch {
-      toast("No se pudo copiar el enlace", "error");
-    }
-  }
-
-  async function shareToTikTok() {
-    const url = getShareUrl();
-    try {
-      await navigator.clipboard.writeText(url);
-      setShowShareModal(false);
-      toast("Enlace copiado. Pégalo en TikTok para compartir.", "success");
-    } catch {
-      toast("No se pudo copiar el enlace", "error");
-    }
   }
 
   if (loading) {
@@ -563,75 +527,6 @@ export default function TextoComunidadPage() {
           )}
         </div>
       </main>
-
-      {/* Modal Compartir */}
-      {showShareModal && authorAllowsShare && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="share-modal-title"
-          onClick={() => setShowShareModal(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-white rounded-t-3xl sm:rounded-3xl p-6 pb-8 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="share-modal-title" className="text-lg font-bold text-black mb-4">
-              Compartir texto
-            </h2>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={copyShareLink}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-left hover:bg-neutral-50 transition-colors"
-              >
-                <IconLink className="size-6 text-neutral-600 shrink-0" />
-                <span className="text-black text-sm font-medium">Copiar enlace</span>
-              </button>
-              <button
-                type="button"
-                onClick={shareToTwitter}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-left hover:bg-neutral-50 transition-colors"
-              >
-                <IconBrandX className="size-6 shrink-0" />
-                <span className="text-black text-sm font-medium">X (Twitter)</span>
-              </button>
-              <button
-                type="button"
-                onClick={shareToFacebook}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-left hover:bg-neutral-50 transition-colors"
-              >
-                <IconBrandFacebook className="size-6 text-[#1877F2] shrink-0" />
-                <span className="text-black text-sm font-medium">Facebook</span>
-              </button>
-              <button
-                type="button"
-                onClick={shareToInstagram}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-left hover:bg-neutral-50 transition-colors"
-              >
-                <IconBrandInstagram className="size-6 text-[#E4405F] shrink-0" />
-                <span className="text-black text-sm font-medium">Instagram</span>
-              </button>
-              <button
-                type="button"
-                onClick={shareToTikTok}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 text-left hover:bg-neutral-50 transition-colors"
-              >
-                <IconBrandTikTok className="size-6 shrink-0" />
-                <span className="text-black text-sm font-medium">TikTok</span>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowShareModal(false)}
-              className="mt-4 w-full py-3 text-neutral-500 text-sm font-medium rounded-xl hover:bg-neutral-100 transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

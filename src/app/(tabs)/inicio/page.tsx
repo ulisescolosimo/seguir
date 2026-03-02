@@ -206,6 +206,7 @@ export default function InicioPage() {
   const [loadingDiccionario, setLoadingDiccionario] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [showDiccionarioModal, setShowDiccionarioModal] = useState(false);
+  const [showPalabraDelDiaPopup, setShowPalabraDelDiaPopup] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -275,6 +276,29 @@ export default function InicioPage() {
       setLoadingCommunity(false);
     })();
   }, []);
+
+  // Popup invitación palabra del día: solo primera vez en el día si no la definió
+  const PALABRA_POPUP_KEY = "seguir-inicio-palabra-popup-date";
+  useEffect(() => {
+    if (loadingDiccionario || !userId || !palabraDelDia) return;
+    const tieneDefinicion = !!definiciones[palabraDelDia.id]?.definicion?.trim();
+    if (tieneDefinicion) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    try {
+      const ultimoPopup = typeof window !== "undefined" ? localStorage.getItem(PALABRA_POPUP_KEY) : null;
+      if (ultimoPopup === hoy) return; // ya mostramos hoy
+      setShowPalabraDelDiaPopup(true);
+    } catch {
+      setShowPalabraDelDiaPopup(true);
+    }
+  }, [loadingDiccionario, userId, palabraDelDia, definiciones]);
+
+  const closePalabraDelDiaPopup = () => {
+    setShowPalabraDelDiaPopup(false);
+    try {
+      localStorage.setItem(PALABRA_POPUP_KEY, new Date().toISOString().slice(0, 10));
+    } catch {}
+  };
 
   const carouselRef = useRef<HTMLDivElement>(null);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -486,6 +510,48 @@ export default function InicioPage() {
                   <p className="text-black text-sm leading-6">
                     El diccionario es un espacio donde la comunidad comparte el significado personal de diferentes palabras. No se trata de acertar una definición &quot;correcta&quot; sino de construir desde la propia mirada. Cada día hay una palabra nueva para definir y siempre podés ver y buscar todas las que ya tienen múltiples significados.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {showPalabraDelDiaPopup && palabraDelDia && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/50"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-palabra-dia-title"
+              onClick={closePalabraDelDiaPopup}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-5">
+                  <div className="w-12 h-12 rounded-2xl bg-red/20 flex items-center justify-center text-red mb-4">
+                    <IconPalabraHeart className="w-6 h-6" />
+                  </div>
+                  <h2 id="modal-palabra-dia-title" className="text-lg font-bold text-black leading-5 mb-2">
+                    La palabra del día: {palabraDelDia.palabra}
+                  </h2>
+                  <p className="text-black text-sm leading-6 mb-5">
+                    ¿Qué significa para vos? Definila con tu propia mirada y sumala al diccionario de la comunidad.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <Link
+                      href="/inicio/definir"
+                      onClick={closePalabraDelDiaPopup}
+                      className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors"
+                    >
+                      Definir palabra
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={closePalabraDelDiaPopup}
+                      className="text-neutral-500 text-sm font-medium hover:text-neutral-700"
+                    >
+                      Ahora no
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

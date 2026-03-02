@@ -39,7 +39,7 @@ export function PalabraItem({
         {resaltarCoincidencia(palabra, query)}
       </span>
       <span className="font-diccionario text-xs text-red/70 tabular-nums shrink-0">
-        {cantidad_significados} acepción{cantidad_significados !== 1 ? "es" : ""}
+        {cantidad_significados} {cantidad_significados !== 1 ? "acepciones" : "acepción"}
       </span>
     </Link>
   );

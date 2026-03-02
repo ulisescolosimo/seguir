@@ -117,7 +117,7 @@ export default function SignificadosPage() {
             {/* Barra superior tipo diccionario: cantidad + acción */}
             <div className="sticky top-0 z-10 bg-[#f5f0e8]/95 border-b border-red/10 px-4 py-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-neutral-600 text-xs font-serif tabular-nums">
-                {definiciones.length} acepción{definiciones.length !== 1 ? "es" : ""}
+                {definiciones.length} {definiciones.length !== 1 ? "acepciones" : "acepción"}
               </p>
               {puedeDefinirAqui && (
                 <Link
