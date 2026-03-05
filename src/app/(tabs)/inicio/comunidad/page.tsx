@@ -143,7 +143,7 @@ function CommunityTabs({
             : "text-neutral-500"
         }`}
       >
-        Para ti
+        Comunidad
       </button>
       <button
         type="button"
