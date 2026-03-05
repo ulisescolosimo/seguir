@@ -166,7 +166,6 @@ export default function CuentoPublicPage() {
     (Array.isArray(text.formatos_texto) ? text.formatos_texto?.[0]?.nombre : null) ||
     "TEXTO"
   ).toUpperCase();
-  const imageUrl = text.image_url || "https://placehold.co/400x174";
 
   return (
     <div className="flex flex-col min-h-screen bg-neutral-100 overflow-hidden">
@@ -191,14 +190,22 @@ export default function CuentoPublicPage() {
       )}
       <main className="flex-1 overflow-y-auto">
         <div className="px-5 py-4 pb-8 max-w-lg mx-auto mb-4">
-          <div className="w-full aspect-[4/3] relative rounded-3xl bg-neutral-200 overflow-hidden">
-            <Image
-              src={imageUrl}
-              alt=""
-              fill
-              className="object-cover"
-            />
-          </div>
+          {text.image_url?.trim() ? (
+            <div className="w-full aspect-[4/3] relative rounded-3xl bg-neutral-200 overflow-hidden">
+              <Image
+                src={text.image_url}
+                alt=""
+                fill
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-full aspect-[4/3] rounded-3xl bg-neutral-200 flex items-center justify-center text-neutral-400" aria-hidden>
+              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+              </svg>
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-4 gap-4">
             <span className="text-orange-700 text-sm font-normal leading-4">

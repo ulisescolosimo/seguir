@@ -182,7 +182,7 @@ export default function EditarPage() {
     }
 
     setSaving(false);
-    router.back();
+    router.push("/inicio");
   }
 
   function handlePublicar() {

@@ -27,6 +27,7 @@ export default function PublicarPage() {
   const [formatos, setFormatos] = useState<Formato[]>([]);
   const [loadingFormatos, setLoadingFormatos] = useState(true);
   const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [quitarImagen, setQuitarImagen] = useState(false);
   const [loading, setLoading] = useState(!!textId);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +56,19 @@ export default function PublicarPage() {
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("texts")
-        .select("title, formato_id, image_url")
+        .select("title, body, formato_id, image_url")
         .eq("id", textId)
         .single();
       if (!fetchError && data) {
-        setTitulo(data.title ?? "");
+        const savedTitle = (data.title ?? "").trim();
+        const body = (data.body ?? "").trim();
+        // Si no hay título o es "Sin título", sugerir primera línea del cuerpo (igual que con consigna)
+        const firstLine = body.split(/\r?\n/)[0]?.trim().slice(0, 80) ?? "";
+        if (!savedTitle || savedTitle === "Sin título") {
+          setTitulo(firstLine);
+        } else {
+          setTitulo(savedTitle);
+        }
         setFormatoId(data.formato_id ?? null);
         setExistingImageUrl(data.image_url?.trim() || null);
       }
@@ -101,7 +110,7 @@ export default function PublicarPage() {
         .single();
       if (data) {
         setPreviaBody(data.body ?? "");
-        if (!imagenFile && data.image_url) {
+        if (!imagenFile && data.image_url && !quitarImagen) {
           setPreviaImageUrl(data.image_url);
         }
       }
@@ -131,7 +140,7 @@ export default function PublicarPage() {
       ? formatos.find((f) => f.id === formatoId)?.nombre ?? null
       : null;
 
-    // Con textId: publicar requiere título, formato e imagen (nueva o ya existente)
+    // Con textId: publicar requiere título y formato; imagen opcional
     if (textId) {
       if (!titulo.trim()) {
         setError("Completá el título.");
@@ -140,12 +149,6 @@ export default function PublicarPage() {
       }
       if (!formatoId) {
         setError("Elegí un formato.");
-        setPublishing(false);
-        return;
-      }
-      const hasImage = imagenFile || existingImageUrl;
-      if (!hasImage) {
-        setError("Subí una imagen.");
         setPublishing(false);
         return;
       }
@@ -175,9 +178,10 @@ export default function PublicarPage() {
       return;
     }
 
-    let imageUrl: string | null = existingImageUrl ?? null;
-
-    if (imagenFile) {
+    let imageUrl: string | null = null;
+    if (quitarImagen && !imagenFile) {
+      imageUrl = null;
+    } else if (imagenFile) {
       if (imagenFile.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
         setError(`La imagen debe ser menor a ${MAX_IMAGE_SIZE_MB}MB.`);
         setPublishing(false);
@@ -204,6 +208,8 @@ export default function PublicarPage() {
         .from(BUCKET_IMAGENES)
         .getPublicUrl(path);
       imageUrl = urlData.publicUrl;
+    } else if (!quitarImagen && existingImageUrl) {
+      imageUrl = existingImageUrl;
     }
 
     const { error: updateError } = await supabase
@@ -238,8 +244,16 @@ export default function PublicarPage() {
         return;
       }
       setImagenFile(f);
+      setQuitarImagen(false);
       setError(null);
     }
+  }
+
+  function handleQuitarImagen() {
+    setImagenFile(null);
+    setQuitarImagen(true);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   const backHref = textId ? `/escribir/editar?id=${textId}` : "/escribir/editar";
@@ -249,8 +263,7 @@ export default function PublicarPage() {
 
   const todosCompletos = Boolean(
     titulo.trim() &&
-    formatoId &&
-    (textId ? (imagenFile || existingImageUrl) : true)
+    formatoId
   );
 
   return (
@@ -331,7 +344,7 @@ export default function PublicarPage() {
               Título
             </h2>
             <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-2">
-              Se toma del texto que escribiste
+              Podés usar la primera línea de tu texto, el de la consigna o inventar uno
             </p>
             <input
               type="text"
@@ -358,22 +371,30 @@ export default function PublicarPage() {
                 {!loadingFormatos &&
                   (() => {
                     const { ficcion, no_ficcion } = groupFormatosByCategoria(formatos);
+                    const noTengoIdea = formatos.find((f) => f.nombre === "No tengo idea");
+                    const ficcionSinNti = ficcion.filter((f) => f.nombre !== "No tengo idea");
+                    const noFiccionSinNti = no_ficcion.filter((f) => f.nombre !== "No tengo idea");
                     return (
                       <>
                         <optgroup label="Ficción">
-                          {ficcion.map((f) => (
+                          {ficcionSinNti.map((f) => (
                             <option key={f.id} value={f.id}>
                               {f.nombre}
                             </option>
                           ))}
                         </optgroup>
                         <optgroup label="No ficción">
-                          {no_ficcion.map((f) => (
+                          {noFiccionSinNti.map((f) => (
                             <option key={f.id} value={f.id}>
                               {f.nombre}
                             </option>
                           ))}
                         </optgroup>
+                        {noTengoIdea && (
+                          <option value={noTengoIdea.id}>
+                            {noTengoIdea.nombre}
+                          </option>
+                        )}
                       </>
                     );
                   })()}
@@ -392,7 +413,7 @@ export default function PublicarPage() {
               Imagen principal
             </h2>
             <p className="text-neutral-400 text-xs leading-4 tracking-wide mb-3">
-              Archivo .JPEG, .PNG de {MAX_IMAGE_SIZE_MB}MB máximo (obligatorio)
+              Archivo .JPEG, .PNG de {MAX_IMAGE_SIZE_MB}MB máximo (opcional)
             </p>
             <input
               ref={fileInputRef}
@@ -401,7 +422,7 @@ export default function PublicarPage() {
               onChange={handleFileChange}
               className="hidden"
             />
-            {existingImageUrl && !imagenFile && (
+            {existingImageUrl && !imagenFile && !quitarImagen && (
               <div className="mb-3 w-full max-w-[12rem] aspect-[16/10] relative rounded-xl overflow-hidden bg-neutral-200">
                 <Image
                   src={existingImageUrl}
@@ -412,10 +433,11 @@ export default function PublicarPage() {
                 <p className="mt-1.5 text-neutral-600 text-xs">Imagen actual (elegí otra para reemplazar)</p>
               </div>
             )}
+            <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full max-w-[12rem] h-10 bg-red rounded-lg flex items-center justify-center gap-2 text-white text-sm font-bold tracking-wider hover:bg-red/90 transition-colors"
+              className="h-10 px-4 bg-red rounded-lg flex items-center justify-center gap-2 text-white text-sm font-bold tracking-wider hover:bg-red/90 transition-colors"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <path
@@ -423,8 +445,18 @@ export default function PublicarPage() {
                   fill="currentColor"
                 />
               </svg>
-              {existingImageUrl || imagenFile ? "CAMBIAR IMAGEN" : "CARGAR IMAGEN"}
+              {(existingImageUrl && !quitarImagen) || imagenFile ? "CAMBIAR IMAGEN" : "CARGAR IMAGEN"}
             </button>
+            {((existingImageUrl && !quitarImagen) || imagenFile) && (
+              <button
+                type="button"
+                onClick={handleQuitarImagen}
+                className="h-10 px-4 bg-neutral-200 text-black rounded-lg text-sm font-bold tracking-wider hover:bg-neutral-300 transition-colors"
+              >
+                QUITAR IMAGEN
+              </button>
+            )}
+            </div>
             {imagenFile && (
               <p className="mt-2 text-neutral-600 text-sm">{imagenFile.name}</p>
             )}

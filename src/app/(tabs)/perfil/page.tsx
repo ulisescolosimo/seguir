@@ -55,6 +55,9 @@ export default function PerfilPage() {
   const [followingAuthorAvatars, setFollowingAuthorAvatars] = useState<Record<string, string>>({});
   const [loadingFollowing, setLoadingFollowing] = useState(false);
 
+  const [myTexts, setMyTexts] = useState<(CommunityTextCardData & { status: "draft" | "published" })[]>([]);
+  const [loadingMyTexts, setLoadingMyTexts] = useState(false);
+
   useEffect(() => {
     (async () => {
       const supabase = createClient();
@@ -196,6 +199,28 @@ export default function PerfilPage() {
           setFollowingTexts([]);
         } finally {
           setLoadingFollowing(false);
+        }
+      }
+
+      // Textos propios (borradores + publicados) para mostrar en perfil
+      if (user) {
+        setLoadingMyTexts(true);
+        try {
+          const { data: textsData, error: textsError } = await supabase
+            .from("texts")
+            .select("id, title, body, status, formato_id, tematica, formatos_texto(nombre), image_url, updated_at, user_id")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false })
+            .limit(20);
+          if (!textsError && textsData?.length) {
+            setMyTexts(textsData as (CommunityTextCardData & { status: "draft" | "published" })[]);
+          } else {
+            setMyTexts([]);
+          }
+        } catch {
+          setMyTexts([]);
+        } finally {
+          setLoadingMyTexts(false);
         }
       }
     })();
@@ -565,6 +590,46 @@ export default function PerfilPage() {
           </div>
         </section>
         )}
+
+        {/* Mis textos */}
+        <section className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-black text-lg font-bold font-['Inter'] leading-5">
+              Mis textos
+            </h2>
+            <Link
+              href="/inicio/textos"
+              className="text-orange-700 text-sm font-bold font-['Inter'] leading-4"
+            >
+              Ver todos
+            </Link>
+          </div>
+          {loadingMyTexts ? (
+            <p className="text-neutral-500 text-sm">Cargando...</p>
+          ) : myTexts.length === 0 ? (
+            <p className="text-neutral-500 text-sm">
+              Aún no tenés textos. Creá uno desde el inicio.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {myTexts.map((t) => (
+                <Link
+                  key={t.id}
+                  href={t.status === "published" ? `/inicio/comunidad/texto/${t.id}` : `/escribir/editar?id=${t.id}`}
+                  className="block"
+                  aria-label={t.status === "draft" ? `Editar: ${t.title?.trim() || "Sin título"}` : `Ver texto: ${t.title?.trim() || "Sin título"}`}
+                >
+                  <CommunityTextCard
+                    text={t}
+                    authorName={[firstName, lastName].filter(Boolean).join(" ") || "Vos"}
+                    authorAvatarUrl={avatarUrl}
+                    imageWidth="w-28"
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Textos de quienes sigo */}
         <section className="mt-6">

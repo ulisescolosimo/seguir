@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { fetchFormatos, groupFormatosByCategoria } from "@/lib/formatos";
@@ -24,6 +24,8 @@ type CommunityText = {
   updated_at: string;
   user_id: string;
 };
+
+type TabId = "forYou" | "following";
 
 function authorDisplayName(firstName: string | null, lastName: string | null): string {
   const n = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
@@ -86,6 +88,145 @@ function SectionHeader({
   );
 }
 
+/** Tabs tipo X: dos opciones, activo con subrayado rojo, accesible con teclado. */
+function CommunityTabs({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
+}) {
+  const tabListRef = useRef<HTMLDivElement>(null);
+
+  const focusTab = useCallback((tab: TabId) => {
+    const el = tabListRef.current?.querySelector(`[data-tab-id="${tab}"]`) as HTMLButtonElement | null;
+    el?.focus();
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        const next: TabId = activeTab === "following" ? "forYou" : "following";
+        onTabChange(next);
+        focusTab(next);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        const next: TabId = activeTab === "forYou" ? "following" : "forYou";
+        onTabChange(next);
+        focusTab(next);
+      }
+    },
+    [activeTab, onTabChange, focusTab]
+  );
+
+  return (
+    <div
+      ref={tabListRef}
+      role="tablist"
+      aria-label="Secciones de comunidad"
+      className="flex w-full border-b border-neutral-200 bg-neutral-100"
+      onKeyDown={handleKeyDown}
+    >
+      <button
+        type="button"
+        role="tab"
+        data-tab-id="forYou"
+        aria-selected={activeTab === "forYou"}
+        aria-controls="panel-for-you"
+        id="tab-for-you"
+        tabIndex={activeTab === "forYou" ? 0 : -1}
+        onClick={() => onTabChange("forYou")}
+        className={`flex-1 py-3 text-center text-sm font-medium transition-colors outline-none focus:ring-2 focus:ring-red/30 focus:ring-inset ${
+          activeTab === "forYou"
+            ? "text-black font-bold border-b-2 border-red"
+            : "text-neutral-500"
+        }`}
+      >
+        Para ti
+      </button>
+      <button
+        type="button"
+        role="tab"
+        data-tab-id="following"
+        aria-selected={activeTab === "following"}
+        aria-controls="panel-following"
+        id="tab-following"
+        tabIndex={activeTab === "following" ? 0 : -1}
+        onClick={() => onTabChange("following")}
+        className={`flex-1 py-3 text-center text-sm font-medium transition-colors outline-none focus:ring-2 focus:ring-red/30 focus:ring-inset ${
+          activeTab === "following"
+            ? "text-black font-bold border-b-2 border-red"
+            : "text-neutral-500"
+        }`}
+      >
+        Siguiendo
+      </button>
+    </div>
+  );
+}
+
+/** Render helper: lista de textos, empty state y loading sin duplicar código. */
+function renderTextList({
+  loading,
+  items,
+  authorNames,
+  authorAvatars,
+  busquedaTrim,
+  emptyMessageNoBusqueda,
+  emptyMessageConBusqueda,
+  showVolverLink = true,
+}: {
+  loading: boolean;
+  items: CommunityText[];
+  authorNames: Record<string, string>;
+  authorAvatars: Record<string, string>;
+  busquedaTrim: string;
+  emptyMessageNoBusqueda: string;
+  emptyMessageConBusqueda: (q: string) => string;
+  showVolverLink?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl p-4 flex items-center justify-center">
+        <p className="text-neutral-400 text-xs">Cargando...</p>
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
+        <p className="text-neutral-500 text-xs">
+          {busquedaTrim ? emptyMessageConBusqueda(busquedaTrim) : emptyMessageNoBusqueda}
+        </p>
+        {!busquedaTrim && showVolverLink && (
+          <Link href="/inicio" className="mt-2 text-orange-700 text-xs font-bold hover:underline">
+            Volver al inicio
+          </Link>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3 transition-opacity duration-200">
+      {items.map((t) => (
+        <Link
+          key={t.id}
+          href={`/inicio/comunidad/texto/${t.id}`}
+          className="block"
+          aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+        >
+          <CommunityTextCard
+            text={t}
+            authorName={authorNames[t.user_id] ?? "un miembro"}
+            authorAvatarUrl={authorAvatars[t.user_id] ?? null}
+          />
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default function ComunidadPage() {
   const [texts, setTexts] = useState<CommunityText[]>([]);
   const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
@@ -102,32 +243,43 @@ export default function ComunidadPage() {
   const [busquedaComunidad, setBusquedaComunidad] = useState("");
   const inputBusquedaComunidadRef = useRef<HTMLInputElement>(null);
 
+  const [activeTab, setActiveTab] = useState<TabId>("forYou");
+
   const [textsSeguidos, setTextsSeguidos] = useState<CommunityText[]>([]);
   const [authorNamesSeguidos, setAuthorNamesSeguidos] = useState<Record<string, string>>({});
   const [authorAvatarsSeguidos, setAuthorAvatarsSeguidos] = useState<Record<string, string>>({});
   const [loadingSeguidos, setLoadingSeguidos] = useState(true);
 
+  const noTengoIdeaIds = useMemo(
+    () => formatos.filter((f) => f.nombre === "No tengo idea").map((f) => f.id),
+    [formatos]
+  );
+
   const textosComunidadFiltrados = useMemo(() => {
     if (!formatoIdFiltroComunidad) return texts;
     const selectedFormato = formatos.find((f) => f.id === formatoIdFiltroComunidad);
     const nombreFormatoLower = selectedFormato?.nombre?.trim().toLowerCase();
+    const esNoTengoIdea = noTengoIdeaIds.includes(formatoIdFiltroComunidad);
     return texts.filter((t) => {
+      if (esNoTengoIdea && t.formato_id && noTengoIdeaIds.includes(t.formato_id)) return true;
       if (t.formato_id === formatoIdFiltroComunidad) return true;
       if (nombreFormatoLower && t.tematica?.trim().toLowerCase() === nombreFormatoLower) return true;
       return false;
     });
-  }, [texts, formatoIdFiltroComunidad, formatos]);
+  }, [texts, formatoIdFiltroComunidad, formatos, noTengoIdeaIds]);
 
   const textosSeguidosFiltrados = useMemo(() => {
     if (!formatoIdFiltroSeguidos) return textsSeguidos;
     const selectedFormato = formatos.find((f) => f.id === formatoIdFiltroSeguidos);
     const nombreFormatoLower = selectedFormato?.nombre?.trim().toLowerCase();
+    const esNoTengoIdea = noTengoIdeaIds.includes(formatoIdFiltroSeguidos);
     return textsSeguidos.filter((t) => {
+      if (esNoTengoIdea && t.formato_id && noTengoIdeaIds.includes(t.formato_id)) return true;
       if (t.formato_id === formatoIdFiltroSeguidos) return true;
       if (nombreFormatoLower && t.tematica?.trim().toLowerCase() === nombreFormatoLower) return true;
       return false;
     });
-  }, [textsSeguidos, formatoIdFiltroSeguidos, formatos]);
+  }, [textsSeguidos, formatoIdFiltroSeguidos, formatos, noTengoIdeaIds]);
 
   const textosComunidadBuscados = useMemo(() => {
     const q = busquedaComunidad.trim().toLowerCase();
@@ -264,6 +416,11 @@ export default function ComunidadPage() {
   }) => {
     if (!open) return null;
     const { ficcion, no_ficcion } = groupFormatosByCategoria(formatos);
+    const noTengoIdea = formatos.find((f) => f.nombre === "No tengo idea");
+    const ficcionSinNti = ficcion.filter((f) => f.nombre !== "No tengo idea");
+    const noFiccionSinNti = no_ficcion.filter((f) => f.nombre !== "No tengo idea");
+    const noTengoIdeaSelected = noTengoIdea && noTengoIdeaIds.includes(formatoId ?? "");
+
     return (
       <>
         <div
@@ -296,8 +453,22 @@ export default function ComunidadPage() {
             >
               Todos
             </button>
+            {noTengoIdea && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectFormato(noTengoIdea.id);
+                  onClose();
+                }}
+                className={`w-full text-left py-3 px-4 rounded-xl text-base font-medium mb-2 mt-2 ${
+                  noTengoIdeaSelected ? "bg-red/15 text-red" : "bg-neutral-100 text-black"
+                }`}
+              >
+                {noTengoIdea.nombre}
+              </button>
+            )}
             <p className="text-neutral-500 text-xs font-medium uppercase tracking-wider mt-4 mb-2">Ficción</p>
-            {ficcion.map((f) => (
+            {ficcionSinNti.map((f) => (
               <button
                 key={f.id}
                 type="button"
@@ -313,7 +484,7 @@ export default function ComunidadPage() {
               </button>
             ))}
             <p className="text-neutral-500 text-xs font-medium uppercase tracking-wider mt-4 mb-2">No ficción</p>
-            {no_ficcion.map((f) => (
+            {noFiccionSinNti.map((f) => (
               <button
                 key={f.id}
                 type="button"
@@ -357,6 +528,15 @@ export default function ComunidadPage() {
       />
       <div className="w-full h-0 border-t border-zinc-300 shrink-0" aria-hidden />
 
+      <CommunityTabs
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setShowFiltroComunidad(false);
+          setShowFiltroSeguidos(false);
+        }}
+      />
+
       {showBusquedaComunidad && (
         <div className="px-4 pt-2 pb-1 bg-neutral-100 shrink-0">
           <label className="sr-only" htmlFor="busqueda-comunidad">
@@ -380,108 +560,70 @@ export default function ComunidadPage() {
 
       <main className="flex-1 overflow-y-auto">
         <div className="px-4 py-4 pb-6 mx-auto">
-          {/* Sección Comunidad: todos los textos públicos */}
-          <SectionHeader
-            title="Comunidad"
-            onFilter={() => setShowFiltroComunidad(true)}
-            ariaLabelFilter="Filtrar textos de la comunidad por formato"
-            activeFilterName={formatoIdFiltroComunidad ? formatos.find((f) => f.id === formatoIdFiltroComunidad)?.nombre ?? null : null}
-            onClearFilter={() => setFormatoIdFiltroComunidad(null)}
-          />
-
-          <FiltroFormatoPanel
-            open={showFiltroComunidad}
-            onClose={() => setShowFiltroComunidad(false)}
-            formatoId={formatoIdFiltroComunidad}
-            onSelectFormato={setFormatoIdFiltroComunidad}
-          />
-
-          {loading ? (
-            <div className="bg-white rounded-xl p-4 flex items-center justify-center">
-              <p className="text-neutral-400 text-xs">Cargando...</p>
-            </div>
-          ) : textosComunidadBuscados.length === 0 ? (
-            <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
-              <p className="text-neutral-500 text-xs">
-                {busquedaComunidad.trim()
-                  ? `Ningún texto coincide con "${busquedaComunidad.trim()}".`
-                  : "Aún no hay textos públicos en la comunidad."}
-              </p>
-              <Link
-                href="/inicio"
-                className="mt-2 text-orange-700 text-xs font-bold hover:underline"
-              >
-                Volver al inicio
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {textosComunidadBuscados.map((t) => (
-                <Link
-                  key={t.id}
-                  href={`/inicio/comunidad/texto/${t.id}`}
-                  className="block"
-                  aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
-                >
-                  <CommunityTextCard
-                    text={t}
-                    authorName={authorNames[t.user_id] ?? "un miembro"}
-                    authorAvatarUrl={authorAvatars[t.user_id] ?? null}
-                  />
-                </Link>
-              ))}
+          {activeTab === "forYou" && (
+            <div
+              id="panel-for-you"
+              role="tabpanel"
+              aria-labelledby="tab-for-you"
+              className="animate-fadeIn"
+            >
+              <SectionHeader
+                title="Comunidad"
+                onFilter={() => setShowFiltroComunidad(true)}
+                ariaLabelFilter="Filtrar textos de la comunidad por formato"
+                activeFilterName={formatoIdFiltroComunidad ? formatos.find((f) => f.id === formatoIdFiltroComunidad)?.nombre ?? null : null}
+                onClearFilter={() => setFormatoIdFiltroComunidad(null)}
+              />
+              <FiltroFormatoPanel
+                open={showFiltroComunidad}
+                onClose={() => setShowFiltroComunidad(false)}
+                formatoId={formatoIdFiltroComunidad}
+                onSelectFormato={setFormatoIdFiltroComunidad}
+              />
+              {renderTextList({
+                loading,
+                items: textosComunidadBuscados,
+                authorNames,
+                authorAvatars,
+                busquedaTrim: busquedaComunidad.trim(),
+                emptyMessageNoBusqueda: "Aún no hay textos públicos en la comunidad.",
+                emptyMessageConBusqueda: (q) => `Ningún texto coincide con "${q}".`,
+              })}
             </div>
           )}
 
-          {/* Sección Textos de escritores que seguís */}
-          <div className="mt-6 mb-6">
-            <SectionHeader
-              title="Textos de escritores que seguís"
-              onFilter={() => setShowFiltroSeguidos(true)}
-              ariaLabelFilter="Filtrar textos de escritores que seguís"
-              activeFilterName={formatoIdFiltroSeguidos ? formatos.find((f) => f.id === formatoIdFiltroSeguidos)?.nombre ?? null : null}
-              onClearFilter={() => setFormatoIdFiltroSeguidos(null)}
-            />
-
-            <FiltroFormatoPanel
-              open={showFiltroSeguidos}
-              onClose={() => setShowFiltroSeguidos(false)}
-              formatoId={formatoIdFiltroSeguidos}
-              onSelectFormato={setFormatoIdFiltroSeguidos}
-            />
-
-            {loadingSeguidos ? (
-              <div className="bg-white rounded-xl p-4 flex items-center justify-center">
-                <p className="text-neutral-400 text-xs">Cargando...</p>
-              </div>
-            ) : textosSeguidosBuscados.length === 0 ? (
-              <div className="bg-white rounded-xl p-5 flex flex-col items-center justify-center text-center">
-                <p className="text-neutral-500 text-xs">
-                  {busquedaComunidad.trim()
-                    ? `Ningún texto coincide con "${busquedaComunidad.trim()}".`
-                    : "Cuando sigas a escritores con perfil público, sus textos aparecerán aquí."}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {textosSeguidosBuscados.map((t) => (
-                  <Link
-                    key={t.id}
-                    href={`/inicio/comunidad/texto/${t.id}`}
-                    className="block"
-                    aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
-                  >
-                    <CommunityTextCard
-                      text={t}
-                      authorName={authorNamesSeguidos[t.user_id] ?? "un miembro"}
-                      authorAvatarUrl={authorAvatarsSeguidos[t.user_id] ?? null}
-                    />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
+          {activeTab === "following" && (
+            <div
+              id="panel-following"
+              role="tabpanel"
+              aria-labelledby="tab-following"
+              className="animate-fadeIn"
+            >
+              <SectionHeader
+                title="Siguiendo"
+                onFilter={() => setShowFiltroSeguidos(true)}
+                ariaLabelFilter="Filtrar textos de escritores que seguís"
+                activeFilterName={formatoIdFiltroSeguidos ? formatos.find((f) => f.id === formatoIdFiltroSeguidos)?.nombre ?? null : null}
+                onClearFilter={() => setFormatoIdFiltroSeguidos(null)}
+              />
+              <FiltroFormatoPanel
+                open={showFiltroSeguidos}
+                onClose={() => setShowFiltroSeguidos(false)}
+                formatoId={formatoIdFiltroSeguidos}
+                onSelectFormato={setFormatoIdFiltroSeguidos}
+              />
+              {renderTextList({
+                loading: loadingSeguidos,
+                items: textosSeguidosBuscados,
+                authorNames: authorNamesSeguidos,
+                authorAvatars: authorAvatarsSeguidos,
+                busquedaTrim: busquedaComunidad.trim(),
+                emptyMessageNoBusqueda: "Cuando sigas a escritores con perfil público, sus textos aparecerán aquí.",
+                emptyMessageConBusqueda: (q) => `Ningún texto coincide con "${q}".`,
+                showVolverLink: false,
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>

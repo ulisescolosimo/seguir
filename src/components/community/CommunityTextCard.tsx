@@ -54,17 +54,25 @@ export function CommunityTextCard({
     text.tematica?.trim() ||
     "TEXTO"
   ).toUpperCase();
-  const imageUrl = text.image_url || "https://placehold.co/112x112";
+  const hasImage = Boolean(text.image_url?.trim());
 
   return (
     <div className="w-full h-32 bg-white rounded-xl shadow-[0px_4px_4px_0px_rgba(0,0,0,0.06)] overflow-hidden flex">
       <div className={`${imageWidth} h-32 shrink-0 bg-neutral-200 overflow-hidden`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt=""
-          className="w-full h-full object-cover"
-        />
+        {hasImage ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={text.image_url!}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-neutral-400" aria-hidden>
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+            </svg>
+          </div>
+        )}
       </div>
       <div className="flex-1 min-w-0 p-2.5 pb-4 flex flex-col relative">
         <span className="text-orange-700 text-xs font-medium leading-tight shrink-0">

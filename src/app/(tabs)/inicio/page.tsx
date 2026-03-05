@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -20,6 +20,8 @@ import {
   IconEscribirDesdeCero,
   IconNavConsignas,
   IconInfo,
+  IconEdit,
+  IconChevronLeft,
 } from "@/components/ui/Icons";
 import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 
@@ -104,35 +106,42 @@ function TextCardLarge({
   className?: string;
 }) {
   const displayTitle = title.trim() || "Sin título";
-  const href = status === "published" ? `/inicio/comunidad/texto/${id}` : `/escribir/editar?id=${id}`;
+  const contentHref = status === "published" ? `/inicio/comunidad/texto/${id}` : `/escribir/editar?id=${id}`;
+  const editHref = `/escribir/editar?id=${id}`;
   return (
-    <Link
-      href={href}
-      className={`flex flex-col bg-white rounded-2xl p-4 block ${className}`}
-      aria-label={status === "draft" ? `Editar: ${displayTitle}` : `Ver texto: ${displayTitle}`}
+    <div
+      className={`flex flex-col bg-white rounded-2xl p-4 ${className}`}
     >
-      <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-hidden pb-2">
-        <span className="text-neutral-400 text-xs leading-3 shrink-0 pb-2">
-          Última edición {formatFecha(updated_at)}
-        </span>
-        <h3 className="text-lg font-bold text-black leading-5 line-clamp-2 shrink-0">
-          {displayTitle}
-        </h3>
-        <p className="text-black text-sm font-normal leading-5 line-clamp-4 min-h-0 overflow-hidden">
-          {excerpt(body, 220) || "Sin contenido aún."}
-        </p>
-      </div>
+      <Link
+        href={contentHref}
+        className="flex flex-col flex-1 min-h-0 block"
+        aria-label={status === "draft" ? `Editar: ${displayTitle}` : `Ver texto: ${displayTitle}`}
+      >
+        <div className="flex flex-col gap-0.5 flex-1 min-h-0 overflow-hidden pb-2">
+          <span className="text-neutral-400 text-xs leading-3 shrink-0 pb-2">
+            Última edición {formatFecha(updated_at)}
+          </span>
+          <h3 className="text-lg font-bold text-black leading-5 line-clamp-2 shrink-0">
+            {displayTitle}
+          </h3>
+          <p className="text-black text-sm font-normal leading-5 line-clamp-4 min-h-0 overflow-hidden">
+            {excerpt(body, 220) || "Sin contenido aún."}
+          </p>
+        </div>
+      </Link>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-2 shrink-0">
         <span className="text-black text-sm font-semibold leading-4">
           {status === "draft" ? "Borrador" : "Publicado"}
         </span>
-        {status === "draft" && (
-          <span className="h-10 px-5 bg-red text-white text-sm font-bold leading-4 rounded-[47px] inline-flex items-center justify-center">
-            Seguir escribiendo
-          </span>
-        )}
+        <Link
+          href={editHref}
+          className="p-2 -m-2 text-red hover:bg-red/10 rounded-full transition-colors"
+          aria-label={`Editar: ${displayTitle}`}
+        >
+          <IconEdit className="size-5" />
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -208,6 +217,18 @@ export default function InicioPage() {
   const [showDiccionarioModal, setShowDiccionarioModal] = useState(false);
   const [showPalabraDelDiaPopup, setShowPalabraDelDiaPopup] = useState(false);
 
+  const refetchTexts = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from("texts")
+      .select("id, title, body, status, updated_at, consigna_id")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false });
+    setTexts((data as TextRecord[]) ?? []);
+  }, []);
+
   useEffect(() => {
     const supabase = createClient();
     (async () => {
@@ -277,7 +298,17 @@ export default function InicioPage() {
     })();
   }, []);
 
-  // Popup invitación palabra del día: solo primera vez en el día si no la definió
+  // Refrescar "Mis textos" cuando la pestaña vuelve a estar visible (p. ej. al volver de editar)
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refetchTexts();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refetchTexts]);
+
+  // Popup invitación palabra del día
   const PALABRA_POPUP_KEY = "seguir-inicio-palabra-popup-date";
   useEffect(() => {
     if (loadingDiccionario || !userId || !palabraDelDia) return;
@@ -384,18 +415,28 @@ export default function InicioPage() {
             ))}
           </div>
           {texts.length > 1 && (
-            <div className="flex justify-center gap-1.5 mt-3">
-              {texts.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => goToSlide(i)}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    i === slideIndex ? "bg-red w-4" : "bg-neutral-300"
-                  }`}
-                  aria-label={`Ir a texto ${i + 1}`}
-                />
-              ))}
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <button
+                type="button"
+                onClick={() => goToSlide(slideIndex - 1)}
+                disabled={slideIndex <= 0}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Texto anterior"
+              >
+                <IconChevronLeft className="size-6" />
+              </button>
+              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
+                {slideIndex + 1} / {texts.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToSlide(slideIndex + 1)}
+                disabled={slideIndex >= texts.length - 1}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Siguiente texto"
+              >
+                <IconChevronLeft className="size-6 rotate-180" />
+              </button>
             </div>
           )}
         </div>
@@ -466,18 +507,28 @@ export default function InicioPage() {
             ))}
           </div>
           {communityChunks.length > 1 && (
-            <div className="flex justify-center gap-1.5 mt-3">
-              {communityChunks.map((_: CommunityTextPreview[], i: number) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => goToCommunitySlide(i)}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    i === communitySlideIndex ? "bg-red w-4" : "bg-neutral-300"
-                  }`}
-                  aria-label={`Ir a slide ${i + 1}`}
-                />
-              ))}
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <button
+                type="button"
+                onClick={() => goToCommunitySlide(communitySlideIndex - 1)}
+                disabled={communitySlideIndex <= 0}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Slide anterior"
+              >
+                <IconChevronLeft className="size-6" />
+              </button>
+              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
+                {communitySlideIndex + 1} / {communityChunks.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToCommunitySlide(communitySlideIndex + 1)}
+                disabled={communitySlideIndex >= communityChunks.length - 1}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Siguiente slide"
+              >
+                <IconChevronLeft className="size-6 rotate-180" />
+              </button>
             </div>
           )}
         </div>

@@ -134,9 +134,6 @@ export default function RecursosPage() {
         aria-hidden
       />
       <div className="px-4 pt-4 pb-2">
-        <h2 className="text-black text-lg font-bold leading-5 mb-4">
-          Recursos
-        </h2>
         <div className="h-14 flex items-center gap-3 px-4 bg-zinc-100 rounded-[111px]">
           <IconSearch className="size-8 shrink-0 text-[#CF3617]" />
           <input
