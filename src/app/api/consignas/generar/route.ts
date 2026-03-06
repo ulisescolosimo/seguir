@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     }
     if (excluir.length > 0) {
       const listaExcluir = excluir
-        .map((c) => `- "${c.titulo}"${c.descripcion ? `: ${c.descripcion}` : ""}`)
+        .map((c: { titulo: string; descripcion: string }) => `- "${c.titulo}"${c.descripcion ? `: ${c.descripcion}` : ""}`)
         .join("\n");
       userContent += `\n\nNo repitas ninguna de estas consignas (el usuario ya las vio o descartó):\n${listaExcluir}\n\nGenerá una consigna distinta a todas las de la lista.`;
     }
