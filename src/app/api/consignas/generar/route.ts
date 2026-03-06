@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         titulo: typeof x.titulo === "string" ? x.titulo.trim() : "",
         descripcion: typeof x.descripcion === "string" ? x.descripcion.trim() : "",
       }))
-      .filter((x) => x.titulo || x.descripcion);
+      .filter((x: { titulo: string; descripcion: string }) => x.titulo || x.descripcion);
 
     let formatoNombre: string | null = null;
     if (formatoId) {
