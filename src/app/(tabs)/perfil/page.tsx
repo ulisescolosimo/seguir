@@ -47,16 +47,16 @@ export default function PerfilPage() {
   const [savedTexts, setSavedTexts] = useState<CommunityTextCardData[]>([]);
   const [savedAuthorNames, setSavedAuthorNames] = useState<Record<string, string>>({});
   const [savedAuthorAvatars, setSavedAuthorAvatars] = useState<Record<string, string>>({});
-  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(true);
   const [privacyExpanded, setPrivacyExpanded] = useState(false);
 
   const [followingTexts, setFollowingTexts] = useState<CommunityTextCardData[]>([]);
   const [followingAuthorNames, setFollowingAuthorNames] = useState<Record<string, string>>({});
   const [followingAuthorAvatars, setFollowingAuthorAvatars] = useState<Record<string, string>>({});
-  const [loadingFollowing, setLoadingFollowing] = useState(false);
+  const [loadingFollowing, setLoadingFollowing] = useState(true);
 
   const [myTexts, setMyTexts] = useState<(CommunityTextCardData & { status: "draft" | "published" })[]>([]);
-  const [loadingMyTexts, setLoadingMyTexts] = useState(false);
+  const [loadingMyTexts, setLoadingMyTexts] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +66,9 @@ export default function PerfilPage() {
       } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
+        setLoadingSaved(false);
+        setLoadingFollowing(false);
+        setLoadingMyTexts(false);
         return;
       }
       setEmail(user.email ?? null);

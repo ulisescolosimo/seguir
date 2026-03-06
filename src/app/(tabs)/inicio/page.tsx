@@ -22,6 +22,7 @@ import {
   IconInfo,
   IconEdit,
   IconChevronLeft,
+  IconClose,
 } from "@/components/ui/Icons";
 import { UnifiedTabHeader } from "@/components/layout/UnifiedTabHeader";
 
@@ -385,86 +386,6 @@ export default function InicioPage() {
     <>
       <UnifiedTabHeader title="Inicio" />
       <div className="px-5 py-4 pb-8">
-      <SectionHeader title="Mis textos" href="/inicio/textos" />
-      {loading ? (
-        <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center">
-          <p className="text-neutral-400 text-sm">Cargando...</p>
-        </div>
-      ) : texts.length > 0 ? (
-        <div className="mb-4">
-          <div
-            ref={carouselRef}
-            onScroll={handleCarouselScroll}
-            className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {texts.map((t, i) => (
-              <div
-                key={t.id}
-                data-slide={i}
-                className="flex-[0_0_100%] min-w-0 w-full snap-start snap-always"
-              >
-                <TextCardLarge
-                  id={t.id}
-                  title={t.title}
-                  body={t.body}
-                  updated_at={t.updated_at}
-                  status={t.status}
-                  hasConsigna={!!t.consigna_id}
-                />
-              </div>
-            ))}
-          </div>
-          {texts.length > 1 && (
-            <div className="flex items-center justify-center gap-4 mt-3">
-              <button
-                type="button"
-                onClick={() => goToSlide(slideIndex - 1)}
-                disabled={slideIndex <= 0}
-                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                aria-label="Texto anterior"
-              >
-                <IconChevronLeft className="size-6" />
-              </button>
-              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
-                {slideIndex + 1} / {texts.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => goToSlide(slideIndex + 1)}
-                disabled={slideIndex >= texts.length - 1}
-                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                aria-label="Siguiente texto"
-              >
-                <IconChevronLeft className="size-6 rotate-180" />
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center justify-center">
-          <p className="text-neutral-400 text-sm text-center">
-            Aún no tienes textos escritos. Cuando crees uno, aparecerá aquí.
-          </p>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3 mb-6">
-        <Link
-          href="/escribir/editar"
-          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
-        >
-          <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
-          Escribir desde cero
-        </Link>
-        <Link
-          href="/consignas"
-          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
-        >
-          <IconNavConsignas className="w-[18px] h-[18px] shrink-0" />
-          Escribir con consignas
-        </Link>
-      </div>
-
       {userId && (
         <>
           <SectionHeader
@@ -482,9 +403,17 @@ export default function InicioPage() {
               onClick={() => setShowDiccionarioModal(false)}
             >
               <div
-                className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden"
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[85vh] flex flex-col overflow-hidden relative"
                 onClick={(e) => e.stopPropagation()}
               >
+                <button
+                  type="button"
+                  onClick={() => setShowDiccionarioModal(false)}
+                  className="absolute top-3 right-3 p-1.5 rounded-full text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 z-10"
+                  aria-label="Cerrar"
+                >
+                  <IconClose className="w-5 h-5" />
+                </button>
                 <div className="p-5 flex-1 overflow-y-auto">
                   <h2 id="modal-diccionario-title" className="text-lg font-bold text-black leading-5 mb-3">
                     Diccionario
@@ -505,9 +434,17 @@ export default function InicioPage() {
               onClick={closePalabraDelDiaPopup}
             >
               <div
-                className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden"
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden relative"
                 onClick={(e) => e.stopPropagation()}
               >
+                <button
+                  type="button"
+                  onClick={closePalabraDelDiaPopup}
+                  className="absolute top-3 right-3 p-1.5 rounded-full text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 z-10"
+                  aria-label="Cerrar"
+                >
+                  <IconClose className="w-5 h-5" />
+                </button>
                 <div className="p-5">
                   <div className="w-12 h-12 rounded-2xl bg-red/20 flex items-center justify-center text-red mb-4">
                     <IconPalabraHeart className="w-6 h-6" />
@@ -581,6 +518,86 @@ export default function InicioPage() {
             ) : null}
           </div>
         </>
+      )}
+
+      <div className="flex flex-col gap-3 mb-6">
+        <Link
+          href="/escribir/editar"
+          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
+        >
+          <IconEscribirDesdeCero className="w-[18px] h-[18px] shrink-0" />
+          Escribir desde cero
+        </Link>
+        <Link
+          href="/consignas"
+          className="flex items-center justify-center gap-2 w-full py-3.5 px-5 bg-red text-white text-base font-bold leading-5 rounded-[47px] hover:bg-red/90 active:bg-red/80 transition-colors shadow-[0px_2px_8px_0px_rgba(207,54,23,0.35)]"
+        >
+          <IconNavConsignas className="w-[18px] h-[18px] shrink-0" />
+          Escribir con consignas
+        </Link>
+      </div>
+
+      <SectionHeader title="Mis textos" href="/inicio/textos" />
+      {loading ? (
+        <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center">
+          <p className="text-neutral-400 text-sm">Cargando...</p>
+        </div>
+      ) : texts.length > 0 ? (
+        <div className="mb-4">
+          <div
+            ref={carouselRef}
+            onScroll={handleCarouselScroll}
+            className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {texts.map((t, i) => (
+              <div
+                key={t.id}
+                data-slide={i}
+                className="flex-[0_0_100%] min-w-0 w-full snap-start snap-always"
+              >
+                <TextCardLarge
+                  id={t.id}
+                  title={t.title}
+                  body={t.body}
+                  updated_at={t.updated_at}
+                  status={t.status}
+                  hasConsigna={!!t.consigna_id}
+                />
+              </div>
+            ))}
+          </div>
+          {texts.length > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <button
+                type="button"
+                onClick={() => goToSlide(slideIndex - 1)}
+                disabled={slideIndex <= 0}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Texto anterior"
+              >
+                <IconChevronLeft className="size-6" />
+              </button>
+              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
+                {slideIndex + 1} / {texts.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToSlide(slideIndex + 1)}
+                disabled={slideIndex >= texts.length - 1}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Siguiente texto"
+              >
+                <IconChevronLeft className="size-6 rotate-180" />
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="h-[220px] bg-white rounded-2xl p-4 mb-4 flex items-center justify-center">
+          <p className="text-neutral-400 text-sm text-center">
+            Aún no tienes textos escritos. Cuando crees uno, aparecerá aquí.
+          </p>
+        </div>
       )}
 
       <SectionHeader title="Comunidad" href="/inicio/comunidad" />

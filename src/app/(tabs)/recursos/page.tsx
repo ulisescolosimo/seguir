@@ -337,7 +337,7 @@ export default function RecursosPage() {
               )}
             </>
           )}
-          {userId && (
+          {userId && !(search.trim() && filtered.length === 0) && (
             <div className="mt-6 bg-white rounded-2xl shadow-[0px_8px_8px_0px_rgba(0,0,0,0.07)] border border-orange-700/20 p-5">
               <p className="text-black text-sm font-normal leading-5">
                 ¿Querés ver algo que no está? Pedilo y lo sumamos próximamente.
