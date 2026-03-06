@@ -51,6 +51,13 @@ export function DiccionarioClient({
   );
   const letrasOrden = letrasEnOrden(porLetra);
 
+  // Letras del diccionario sin filtro por letra (solo búsqueda), para que el índice lateral muestre siempre todo el abecedario
+  const letrasParaIndice = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    const list = q ? palabras.filter((p) => p.palabra.toLowerCase().includes(q)) : palabras;
+    return letrasEnOrden(agruparPorLetra(list));
+  }, [palabras, busqueda]);
+
   const registerRef = useCallback((letra: string, el: HTMLElement | null) => {
     refsMap.current = new Map(refsMap.current);
     if (el) refsMap.current.set(letra, el);
@@ -138,7 +145,7 @@ export function DiccionarioClient({
       <main className="flex-1 min-h-0 flex relative">
         <div
           ref={scrollContainerRef}
-          className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden ${!filtroLetra ? "pr-10 md:pr-12" : ""}`}
+          className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pr-10 md:pr-12"
           role="region"
           aria-label="Listado de palabras del diccionario"
         >
@@ -206,22 +213,20 @@ export function DiccionarioClient({
           </div>
         </div>
 
-        {/* Índice alfabético lateral fijo (sticky a la vista, oculto si hay filtro por letra) */}
-        {!filtroLetra && (
+        {/* Índice alfabético lateral fijo (siempre visible) */}
         <aside
           className="fixed top-14 right-0 bottom-16 w-10 md:w-12 flex flex-col pt-1 pb-1 border-l border-red/10 bg-[#f5f0e8] z-10"
           aria-label="Índice alfabético"
         >
           <div className="flex-1 min-h-0 flex flex-col">
           <IndiceAlfabetico
-            letrasVisibles={letrasOrden}
-            letraActiva={letraActiva}
+            letrasVisibles={filtroLetra ? letrasParaIndice : letrasOrden}
+            letraActiva={filtroLetra ? filtroLetra : letraActiva}
             letraFiltro={filtroLetra}
             onLetraClick={handleLetraClick}
           />
           </div>
         </aside>
-        )}
       </main>
     </div>
   );

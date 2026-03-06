@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Screen } from "@/components/layout/Screen";
 
-const fullScreenPaths = ["/escribir/editar", "/escribir/publicar"];
+const fullScreenPaths = [];
 
 export function TabsLayoutClient({
   children,

@@ -27,6 +27,8 @@ const ERROR_MAP: Record<string, string> = {
   "Email not found": "No hay ninguna cuenta con ese email.",
   "Password link has expired or is invalid":
     "El enlace venció o no es válido. Solicitá uno nuevo.",
+  "Email link is invalid or has expired":
+    "El enlace venció o no es válido. Solicitá uno nuevo.",
   "New password should be different from the old password.":
     "La nueva contraseña tiene que ser distinta a la anterior.",
   "Token has expired or is invalid": "El enlace venció o no es válido. Solicitá uno nuevo.",

@@ -22,6 +22,8 @@ export default function PublicarPage() {
   const previewObjectUrlRef = useRef<string | null>(null);
 
   const [titulo, setTitulo] = useState("");
+  const [bodyTexto, setBodyTexto] = useState("");
+  const [bodyExpandido, setBodyExpandido] = useState(false);
   const [formatoId, setFormatoId] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [formatos, setFormatos] = useState<Formato[]>([]);
@@ -62,6 +64,7 @@ export default function PublicarPage() {
       if (!fetchError && data) {
         const savedTitle = (data.title ?? "").trim();
         const body = (data.body ?? "").trim();
+        setBodyTexto(body);
         // Si no hay título o es "Sin título", sugerir primera línea del cuerpo (igual que con consigna)
         const firstLine = body.split(/\r?\n/)[0]?.trim().slice(0, 80) ?? "";
         if (!savedTitle || savedTitle === "Sin título") {
@@ -261,6 +264,12 @@ export default function PublicarPage() {
 
   const tituloPrevia = titulo.trim() || "Sin título";
 
+  const RESUMEN_MAX_CHARS = 280;
+  const mostrarResumen = bodyTexto.length > RESUMEN_MAX_CHARS && !bodyExpandido;
+  const textoVisible = mostrarResumen
+    ? bodyTexto.slice(0, RESUMEN_MAX_CHARS).trim() + (bodyTexto.length > RESUMEN_MAX_CHARS ? "…" : "")
+    : bodyTexto;
+
   const todosCompletos = Boolean(
     titulo.trim() &&
     formatoId
@@ -353,6 +362,28 @@ export default function PublicarPage() {
               placeholder="Título del texto"
               className="w-full h-14 px-4 bg-white rounded-2xl shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)] text-black text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-red/30"
             />
+
+            {bodyTexto ? (
+              <div className="mt-6">
+                <h2 className="text-lg font-bold text-black leading-5 mb-2">
+                  Texto
+                </h2>
+                <div className="bg-white rounded-2xl p-4 shadow-[0px_2px_2px_0px_rgba(0,0,0,0.05)]">
+                  <div className="text-black text-sm leading-6 whitespace-pre-wrap">
+                    {textoVisible || "Sin contenido aún."}
+                  </div>
+                  {bodyTexto.length > RESUMEN_MAX_CHARS && (
+                    <button
+                      type="button"
+                      onClick={() => setBodyExpandido((b) => !b)}
+                      className="mt-3 text-red text-sm font-bold hover:underline"
+                    >
+                      {bodyExpandido ? "Ver menos" : "Ver texto completo"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             <h2 className="text-lg font-bold text-black leading-5 mt-6 mb-1">
               Formato
@@ -465,7 +496,7 @@ export default function PublicarPage() {
               <p className="mt-4 text-red text-sm">{error}</p>
             )}
 
-            <div className="mt-auto pt-8 flex flex-nowrap gap-3 w-full">
+            <div className="mt-auto pt-8 flex flex-nowrap gap-3 w-full mb-4">
               <button
                 type="button"
                 onClick={handleVistaPrevia}

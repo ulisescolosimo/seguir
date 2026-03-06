@@ -465,75 +465,6 @@ export default function InicioPage() {
         </Link>
       </div>
 
-      <SectionHeader title="Comunidad" href="/inicio/comunidad" />
-      {loadingCommunity ? (
-        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center">
-          <p className="text-neutral-400 text-sm">Cargando...</p>
-        </div>
-      ) : communityTexts.length === 0 ? (
-        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center justify-center">
-          <p className="text-neutral-400 text-sm text-center">
-            Aún no hay textos de la comunidad.
-          </p>
-        </div>
-      ) : (
-        <div className="mb-6">
-          <div
-            ref={communityCarouselRef}
-            onScroll={handleCommunityCarouselScroll}
-            className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {communityChunks.map((chunk: CommunityTextPreview[], slideIdx: number) => (
-              <div
-                key={slideIdx}
-                data-community-slide={slideIdx}
-                className="flex-[0_0_100%] min-w-0 w-full snap-start snap-always flex flex-col gap-3"
-              >
-                {chunk.map((t: CommunityTextPreview) => (
-                  <Link
-                    key={t.id}
-                    href={`/inicio/comunidad/texto/${t.id}`}
-                    className="block"
-                    aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
-                  >
-                    <CommunityTextCard
-                      text={t}
-                      authorName={communityAuthorNames[t.user_id] ?? "un miembro"}
-                      authorAvatarUrl={communityAuthorAvatars[t.user_id] ?? null}
-                    />
-                  </Link>
-                ))}
-              </div>
-            ))}
-          </div>
-          {communityChunks.length > 1 && (
-            <div className="flex items-center justify-center gap-4 mt-3">
-              <button
-                type="button"
-                onClick={() => goToCommunitySlide(communitySlideIndex - 1)}
-                disabled={communitySlideIndex <= 0}
-                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                aria-label="Slide anterior"
-              >
-                <IconChevronLeft className="size-6" />
-              </button>
-              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
-                {communitySlideIndex + 1} / {communityChunks.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => goToCommunitySlide(communitySlideIndex + 1)}
-                disabled={communitySlideIndex >= communityChunks.length - 1}
-                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                aria-label="Siguiente slide"
-              >
-                <IconChevronLeft className="size-6 rotate-180" />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {userId && (
         <>
           <SectionHeader
@@ -607,7 +538,7 @@ export default function InicioPage() {
               </div>
             </div>
           )}
-          <div id="diccionario" className="scroll-mt-4">
+          <div id="diccionario" className="scroll-mt-4 mb-6">
             {loadingDiccionario ? (
               <div className="bg-red-50 rounded-2xl p-4 mb-4">
                 <p className="text-neutral-500 text-sm">Cargando...</p>
@@ -651,6 +582,76 @@ export default function InicioPage() {
           </div>
         </>
       )}
+
+      <SectionHeader title="Comunidad" href="/inicio/comunidad" />
+      {loadingCommunity ? (
+        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center">
+          <p className="text-neutral-400 text-sm">Cargando...</p>
+        </div>
+      ) : communityTexts.length === 0 ? (
+        <div className="h-28 bg-white rounded-xl p-4 mb-6 flex items-center justify-center">
+          <p className="text-neutral-400 text-sm text-center">
+            Aún no hay textos de la comunidad.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-6">
+          <div
+            ref={communityCarouselRef}
+            onScroll={handleCommunityCarouselScroll}
+            className="flex overflow-x-auto gap-4 snap-x snap-mandatory scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {communityChunks.map((chunk: CommunityTextPreview[], slideIdx: number) => (
+              <div
+                key={slideIdx}
+                data-community-slide={slideIdx}
+                className="flex-[0_0_100%] min-w-0 w-full snap-start snap-always flex flex-col gap-3"
+              >
+                {chunk.map((t: CommunityTextPreview) => (
+                  <Link
+                    key={t.id}
+                    href={`/inicio/comunidad/texto/${t.id}`}
+                    className="block"
+                    aria-label={`Ver texto: ${t.title?.trim() || "Sin título"}`}
+                  >
+                    <CommunityTextCard
+                      text={t}
+                      authorName={communityAuthorNames[t.user_id] ?? "un miembro"}
+                      authorAvatarUrl={communityAuthorAvatars[t.user_id] ?? null}
+                    />
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+          {communityChunks.length > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-3">
+              <button
+                type="button"
+                onClick={() => goToCommunitySlide(communitySlideIndex - 1)}
+                disabled={communitySlideIndex <= 0}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Slide anterior"
+              >
+                <IconChevronLeft className="size-6" />
+              </button>
+              <span className="text-neutral-400 text-sm min-w-[4rem] text-center" aria-live="polite">
+                {communitySlideIndex + 1} / {communityChunks.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => goToCommunitySlide(communitySlideIndex + 1)}
+                disabled={communitySlideIndex >= communityChunks.length - 1}
+                className="p-2 -m-2 rounded-full text-red hover:bg-red/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                aria-label="Siguiente slide"
+              >
+                <IconChevronLeft className="size-6 rotate-180" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
     </>
   );

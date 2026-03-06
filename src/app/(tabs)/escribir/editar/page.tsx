@@ -190,8 +190,35 @@ export default function EditarPage() {
     setShowConfirmarPublicar(true);
   }
 
-  function handleConfirmarPublicar() {
+  async function handleConfirmarPublicar() {
     setShowConfirmarPublicar(false);
+    // Si hay texto existente, guardar primero título y cuerpo para que publicar use la versión editada
+    if (textId && (title.trim() || body.trim())) {
+      setSaving(true);
+      setSaveError(null);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setSaveError("Tenés que iniciar sesión para publicar.");
+        setSaving(false);
+        return;
+      }
+      const { error } = await supabase
+        .from("texts")
+        .update({
+          title: title.trim() || "Sin título",
+          body: body.trim(),
+          ...(consignaDesvinculada && { consigna_id: null }),
+        })
+        .eq("id", textId)
+        .eq("user_id", user.id);
+      if (error) {
+        setSaveError(error.message);
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
     const target = textId ? `/escribir/publicar?id=${textId}` : "/escribir/publicar";
     router.push(target);
   }
@@ -381,7 +408,7 @@ export default function EditarPage() {
         {saveError && (
           <p className="shrink-0 pt-2 text-red text-sm text-center">{saveError}</p>
         )}
-        <div className="shrink-0 pt-6 flex flex-nowrap gap-3 w-full">
+        <div className="shrink-0 pt-6 flex flex-nowrap gap-3 w-full mb-4">
           <button
             type="button"
             onClick={handleGuardar}

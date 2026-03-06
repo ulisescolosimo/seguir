@@ -41,17 +41,25 @@ function ResetPasswordContent() {
       let urlError: string | null =
         searchParams.get("error") || searchParams.get("error_description");
       let errorCode = searchParams.get("error_code");
+      let errorDescription = searchParams.get("error_description");
       if (typeof window !== "undefined" && window.location.hash && !urlError) {
         const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
         urlError = hash.get("error") || hash.get("error_description");
         errorCode = errorCode || hash.get("error_code");
+        errorDescription = errorDescription || hash.get("error_description");
       }
       if (urlError || errorCode) {
-        const msg =
-          urlError ||
-          (errorCode === "expired"
-            ? "El enlace venció. Solicitá uno nuevo."
-            : "El enlace no es válido. Solicitá uno nuevo.");
+        const isExpired =
+          errorCode === "otp_expired" || errorCode === "expired";
+        const msg = isExpired
+          ? "El enlace venció. Solicitá uno nuevo."
+          : getAuthErrorMessage(
+              {
+                message: urlError ?? undefined,
+                error_description: errorDescription ?? undefined,
+              },
+              "password-reset"
+            );
         setErrorMessage(msg);
         setStatus("error");
         toast(msg, "error");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 
-const LIMITE_POR_DIA = 2;
+const LIMITE_POR_DIA = 3;
 
 const SYSTEM_PROMPT = `Sos un asistente para escritores. Tu rol es generar consignas de escritura creativa: propuestas breves que inspiren a escribir (ficción, poesía, no ficción).
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     if (usosRestantes <= 0) {
       return NextResponse.json(
         {
-          error: "Llegaste al límite de 2 generaciones por día. Mañana podés generar de nuevo.",
+          error: "Llegaste al límite de 3 generaciones por día. Mañana podés generar de nuevo.",
           usosRestantes: 0,
         },
         { status: 429 }
@@ -75,6 +75,14 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const formatoId = typeof body.formato_id === "string" ? body.formato_id.trim() : null;
     const tema = typeof body.tema === "string" ? body.tema.trim() : null;
+    const excluirRaw = Array.isArray(body.excluir) ? body.excluir : [];
+    const excluir = excluirRaw
+      .filter((x: unknown) => x && typeof x === "object" && ("titulo" in x || "descripcion" in x))
+      .map((x: { titulo?: string; descripcion?: string }) => ({
+        titulo: typeof x.titulo === "string" ? x.titulo.trim() : "",
+        descripcion: typeof x.descripcion === "string" ? x.descripcion.trim() : "",
+      }))
+      .filter((x) => x.titulo || x.descripcion);
 
     let formatoNombre: string | null = null;
     if (formatoId) {
@@ -103,6 +111,12 @@ export async function POST(request: Request) {
       userContent = `Generá una consigna de escritura creativa sobre este tema o idea: "${tema}".`;
     } else if (formatoNombre) {
       userContent = `Generá una consigna de escritura creativa para el género o formato: ${formatoNombre}. La consigna debe inspirar a escribir un texto de ese tipo (${formatoNombre}).`;
+    }
+    if (excluir.length > 0) {
+      const listaExcluir = excluir
+        .map((c) => `- "${c.titulo}"${c.descripcion ? `: ${c.descripcion}` : ""}`)
+        .join("\n");
+      userContent += `\n\nNo repitas ninguna de estas consignas (el usuario ya las vio o descartó):\n${listaExcluir}\n\nGenerá una consigna distinta a todas las de la lista.`;
     }
 
     const completion = await openai.chat.completions.create({
